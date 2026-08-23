@@ -17,10 +17,10 @@ plutil -lint "$PLIST" >/dev/null
 test "$(plutil -extract CFBundleIdentifier raw -o - "$PLIST")" = "com.hd838a.MiRemoteV2ch"
 test "$(plutil -extract CFBundleName raw -o - "$PLIST")" = "MiRemoteV2ch"
 test "$(lipo -archs "$BINARY")" = "arm64"
-xcrun vtool -show-build "$BINARY" | rg -Fq "minos 14.0"
+xcrun vtool -show-build "$BINARY" | grep -Fq "minos 14.0"
 codesign --verify --deep --strict "$DRIVER"
 CODESIGN_DETAILS="$(codesign -d -r- "$DRIVER" 2>&1)"
-print -r -- "$CODESIGN_DETAILS" | rg -Fq 'identifier "com.hd838a.MiRemoteV2ch"'
-strings "$BINARY" | rg -qx 'MiRemoteV %ich'
-strings "$BINARY" | rg -qx 'MiRemoteV%ich_UID'
+print -r -- "$CODESIGN_DETAILS" | grep -Fq 'identifier "com.hd838a.MiRemoteV2ch"'
+strings "$BINARY" | grep -Fxq 'MiRemoteV %ich'
+strings "$BINARY" | grep -Fxq 'MiRemoteV%ich_UID'
 print "DRIVER VERIFY PASS: $DRIVER"

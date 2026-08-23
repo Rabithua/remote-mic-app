@@ -19,16 +19,16 @@ test "$(plutil -extract CFBundleExecutable raw -o - "$PLIST")" = "RemoteMic"
 test "$(plutil -extract CFBundleDisplayName raw -o - "$PLIST")" = "SayAll"
 test "$(plutil -extract LSMinimumSystemVersion raw -o - "$PLIST")" = "14.0"
 test "$(plutil -extract LSUIElement raw -o - "$PLIST")" = "true"
-if plutil -p "$PLIST" | rg -q '"SU|NSBonjourServices|NSLocalNetworkUsageDescription'; then
+if plutil -p "$PLIST" | grep -Eq '"SU|NSBonjourServices|NSLocalNetworkUsageDescription'; then
   print -u2 "removed update or mobile networking metadata is still present"
   exit 1
 fi
 test "$(lipo -archs "$BINARY")" = "arm64"
-xcrun vtool -show-build "$BINARY" | rg -Fq "minos 14.0"
+xcrun vtool -show-build "$BINARY" | grep -Fq "minos 14.0"
 codesign --verify --deep --strict "$APP"
 CODESIGN_DETAILS="$(codesign -d -r- "$APP" 2>&1)"
-print -r -- "$CODESIGN_DETAILS" | rg -Fq 'identifier "com.hd838a.RemoteMic"'
-if otool -L "$BINARY" | rg -qi 'Sparkle|SayAllMacRemote'; then
+print -r -- "$CODESIGN_DETAILS" | grep -Fq 'identifier "com.hd838a.RemoteMic"'
+if otool -L "$BINARY" | grep -Eiq 'Sparkle|SayAllMacRemote'; then
   print -u2 "removed framework linkage is still present"
   exit 1
 fi
