@@ -1,88 +1,10 @@
-# 仓库开发规则
+# Repository rules
 
-## 产品命名规范
-
-- 正式产品全称为「无线麦SayAll.app」；中文简称为「无线麦」，英文简称为「SayAll」。
-- 新增面向用户的品牌文案应优先使用正式全称或适合语境的简称，不得把 `Remote Mic` 作为新的产品品牌。
-- `Remote Mic`、`RemoteMic`、`Remote-Mic-*` 可继续用于历史兼容名称、代码标识符、Bundle ID、可执行文件、安装器和发布资产；不得因品牌统一误改这些兼容边界。
-
-## TODO 同步
-
-- 开发或完成新功能时，必须检查 `TODO.md` 是否存在对应条目。
-- 如果存在对应条目，必须在同一次修改中同步更新其完成状态和必要说明。
-- 只有功能实现并完成相应验证后，才能将条目标记为完成。
-
-## 分支与提交管理
-
-- 分支、worktree、独立提交、预览候选分支和大文件提交门禁统一见 [`BRANCH_MANAGEMENT.md`](BRANCH_MANAGEMENT.md)。
-- 涉及分支创建、切换、commit、合并、Push 或发布前，必须先读取并遵守该文件。
-
-## 新功能测试手册
-
-- 面向用户的全新功能在交付测试包前，必须在 `Testing/` 下新增或更新对应的 Markdown 测试手册；纯内部重构且没有用户可观察行为变化时可不新增。
-- 测试手册至少包含：适用版本或分支、测试前准备、逐步操作、每一步的预期结果、明确的失败判定、稳定功能回归项、日志收集方式，以及自动化、代理实测和用户实测的验证边界。
-- 涉及第三方 APP、真实遥控器、蓝牙、音频、系统权限或不同前后台状态时，必须把这些状态拆成独立用例，不能只写“功能正常”或只提供单元测试结果。
-- 功能行为变化时必须在同一次修改中同步更新测试手册。向用户交付时必须同时提供测试包路径和测试手册链接，并明确哪些用例尚未完成真实环境验收。
-
-## 界面设计硬性约束
-
-- 中文界面文字的最终显示字号不得小于 12pt；不得通过 `minimumScaleFactor` 把中文缩小到 12pt 以下。空间不足时应优先调整布局、换行、截断或扩大控件。
-- 尽量不使用下拉列表，尤其不得把大量不同类别的动作混在一个长下拉列表中。选项较多时应按语义分组，并优先使用页面内的分区、按钮网格或分段选择。
-- 能铺平在页面内完成的功能不得依赖 Popover、Sheet 或连续确认弹窗。相关设置应尽量集中在同一个大页面中一次完成；只为系统文件选择、必要权限确认和不可恢复的危险操作保留系统弹窗。
-- macOS 界面修改必须同时检查并遵守 `design-qa.md` 中的设计规范。
-
-## Bug 修复固定流程
-
-- 所有非简单 Bug 必须严格按“先复现 Bug → 查看日志 → 查看代码 → 修复 Bug → 验证修复”的顺序处理，不得跳过前置步骤直接猜测并修改代码。
-- 复现阶段必须记录可重复的触发条件、错误行为和正常行为边界；无法复现时要明确说明缺少的条件，不能把推测写成已确认结论。
-- 查看日志必须发生在正式修复前，优先核对用户现场时间段、事件顺序、设备或会话身份及最终结果。日志中的“收到事件”“解码成功”或“入队成功”不等于用户功能已经真正可用。
-- 查看代码时必须由复现结果和日志证据缩小范围，明确根因假设并用最小实验验证；根因确认前不得写正式修复。
-- 修复必须保持最小且只覆盖已确认根因。验证必须重新执行原始复现，使同一用例从失败变为通过，并覆盖受影响的稳定基线。
-- 模拟硬件、单元测试、构建、签名和安装包校验只能证明各自边界；如果没有执行真实硬件或真实用户流程，交付时必须明确标注，不能表述为已经完成真机验收。
-- 每个 Bug 的复现证据、日志结论、根因、修复、验证命令和自动化/真机边界都要记录到 `Bugs/` 下对应的独立文档。
-
-## 用户反馈检查规则
-
-- 当用户提到“用户反馈”“feedback”“用户问题”“用户用不了”或同类现场反馈时，默认只执行只读诊断：先检查相关代码、配置、测试和已有文档，判断反馈描述的问题是否在当前实现中真实存在；这类请求本身不授权修改代码。
-- 除非用户随后明确要求修复或修改，否则不得编辑业务代码、测试、配置或文档，也不得把推测当成已确认问题。证据不足时必须明确说明当前只能确认什么、不能确认什么，以及还需要哪些复现条件、日志或真机验证。
-- 回复必须同时包含两部分：第一部分是可直接转发给普通用户的答复，使用通俗语言说明现象、结论和建议；第二部分是技术详情，列出检查过的代码位置、证据、根因假设、置信度和验证边界。
-
-## macOS 私有 Draft 安装包门禁
-
-- 私有 GitHub Draft 只是分发范围受限，不降低安装包信任要求；任何提供给用户安装的 App、DMG、PKG 或包含这些内容的 ZIP 都必须走项目原生 Developer ID 签名与 Apple 公证流程，禁止上传 ad-hoc、未公证或未 staple 的内部包。
-- 上传前和从私有 Draft 重新下载后，都必须验证 Developer ID Application / Installer、预期 Team ID `L3QHLDRPAY`、Hardened Runtime、嵌套组件 `codesign --deep --strict`、`stapler validate` 和 `spctl` Gatekeeper；ZIP 必须解压验证内部 App/DMG/PKG，不能只校验 ZIP 摘要。
-- GitHub 远端摘要、重新下载后的 SHA-256 和逐字节比较必须同时通过，才允许清理旧 Draft。任一签名、公证、下载或摘要检查失败时保留现有 Draft，不得降级为 ad-hoc 重试。
-- 签名和公证仍由受保护 Environment、隔离临时 Keychain 或既有无交互发布机承载；不得在日志、Release Notes、仓库或聊天中打印、复制或持久化证书、私钥、密码、P8、notary 凭据和 Token。验证脚本只消费最终资产与非秘密 Team ID，不负责生成签名。
-- 非 macOS 私有 Draft 资产不适用 Apple 门禁。完整流程见 [`RELEASING.md`](RELEASING.md)。
-
-## macOS Feature Flag 与预览版回归门禁
-
-- Feature Flag 默认关闭不等于风险已隔离。只要实验功能改动了共享蓝牙协议、状态机、音频、HID、持久化或页面容器，必须验证开关缺失/默认关闭、明确关闭、开启、使用后再关闭四种状态。
-- 开关缺失或关闭时，现有稳定功能必须与上一正式版行为等价；测试必须覆盖真实协议事件顺序，不能只验证命令字节、设置持久化、Picker 显隐或辅助函数。
-- RC003 普通语音基线路径必须覆盖无需前置主动 `MIC_OPEN` 的 `STREAM_START → AUDIO → STREAM_STOP`。修改共享 ATVV 处理后，如果单元测试无法真实驱动 CoreBluetooth 回调，必须使用可注入事件回放或完成 RC003 真机基线验证，并明确记录自动化缺口。
-- 核心语音功能涉及多个组件时，必须增加连续用户旅程测试，而不能只分别测试“动作已提交”“输入框聚焦成功”“Fn 会话成功”或“音频已入队”。至少覆盖“执行 App/快捷键动作 → 目标延迟就绪 → 第一次 `STREAM_START → AUDIO → STREAM_STOP` → 最终只产生一组正确 Fn 与完整音频”；第二次或第三次才成功必须判定为失败。
-- `MIC_EXTEND` 能突破 RC003 约 60 秒限制在真机长录音通过前只能称为 ATVV 租期假设；模拟硬件只能验证保活策略，不能证明实际固件接受该命令。
-- macOS 设置页面内容或容器发生变化时，至少在 `800 × 650` 窗口逐一点击全部受影响的侧边栏入口，确认导航项、页头、主要控件和滚动均未裁切或改变窗口几何。
-- 单元测试、构建、签名、公证和安装包校验通过，只能证明各自检查项通过，不能替代稳定行为验收。稳定基线未验证时，不得发布 Pre-release；实验功能本身可以保持“验证中”。
-- Mac 预览版发布后必须下载公开稳定版归档，并通过固定候选 appcast 执行一次真实 Sparkle 安装更新，不能只运行 `--probe`。更新后必须验证版本、签名、公证、Sparkle helper 权限与链接、启动/再次启动以及无新增崩溃报告。
-- 预览版必须保持 Pre-release，固定候选 feed 不得改变稳定 feed；发布和验证期间 `releases/latest` 必须继续指向当前稳定版。
-
-## 研究与计划文档存放
-
-- 本项目的详细 research、plan、竞品分析、产品调研、可行性研究和长期实施方案统一写入私有仓库 `HD838A/private-marketing-toolkit`，本地路径为 `/Users/andy/Develop/Src/AISrc/marketing`。
-- 文档按私有仓库规则存放到 `projects/remote-mic-app/` 下的对应工作流和版本目录；研究及其实施计划优先放入 `projects/remote-mic-app/research/vN/<Topic>/`。
-- 公开源码仓库不得新增包含详细研究过程、内部判断、市场材料或完整开发计划的 `Research/`、`research/`、`Plan/`、`plan/` 目录或同类文档。
-- 公开源码仓库的 `TODO.md`、README、技术文档和代码注释只保留实现所需的简短结论、公开行为、兼容边界和验证状态；需要详细内容时引用私有仓库中的对应文档，不复制全文。
-- 新建或更新研究、计划类文档时，必须同时确认其保存在私有仓库，并在交付说明中给出实际路径。
-
-## iOS 仓库边界
-
-- iOS App 已由独立私有仓库维护；本仓库不得重新创建 `Apps/RemoteMicIOS/`、iOS 工程或 iOS 专属 CI。
-- 本仓库只维护 Mac 端附近连接、授权、按键执行和音频接收。
-- 修改共享手机协议时必须保持字段可选并兼容旧版 iOS，同时在独立 iOS 仓库完成对应验证；纯 iOS UI、TestFlight 和 iOS 设计素材不在本仓库处理。
-
-## Web 与服务器仓库边界
-
-- Web 前端和公网中继服务已分别由独立私有仓库维护；本仓库不得重新创建 `Apps/MobileWeb/` 或 Web/服务端专属 CI。
-- 本仓库继续维护 Mac 端的 Web 会话客户端、协议解析、批准流程、按键执行、音频接收和发布配置，不得因源码拆分改变这些现有行为。
-- 修改 Web 协议时必须保持已发布 Mac 版本兼容，并在前端、服务端和本仓库分别完成对应测试；生产域名、服务器、证书和凭据仍不得进入 Git。
+- This fork targets Apple Silicon and macOS 14 or later only.
+- Keep the app menu-bar-only with `NSApplication.ActivationPolicy.accessory`.
+- Preserve `SayAll.app`, executable `RemoteMic`, bundle ID `com.hd838a.RemoteMic`, driver ID `com.hd838a.MiRemoteV2ch`, and retained UserDefaults keys.
+- Do not reintroduce phone, Apple Watch, web remote, analytics, transcripts/MCP, macros, private packages, Sparkle, Intel builds, or release packaging.
+- Build scripts must remain safe for their explicit app and driver destinations; never weaken bundle-ID, symlink, architecture, or rollback guards.
+- For custom-styled controls, place visible styling and `contentShape` inside the `Button` label and test edge/corner hit targets.
+- Run `./scripts/test.sh` before merging. Treat real Bluetooth, HID, audio, permission continuity, and sleep/wake checks in `TESTING.md` as separate manual acceptance work.
+- Only submit changes to `Rabithua/remote-mic-app`; do not open pull requests against the upstream repository.

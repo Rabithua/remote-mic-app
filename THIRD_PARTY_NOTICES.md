@@ -16,7 +16,7 @@ The Xiaomi RC003 ATVV UUIDs, microphone command behavior, IMA/DVI ADPCM decoding
 - Pinned source revision: `v0.7.1` / `e2b22aaaba4e507a097131704bf96dabc004d9cf`
 - License: GNU General Public License v3.0 (`GPL-3.0`)
 
-BlackHole remains an optional loopback-device choice. This fork includes `scripts/build-doubao-driver.sh` and `third_party/blackhole/blackhole-device-usb.patch`, which build a distinct `MiRemoteV2ch.driver` from the pinned BlackHole source. The patch changes only the actual Audio Device transport type to USB and assigns a separate CFPlugIn factory UUID; it does not modify an installed `BlackHole2ch.driver`. The release build embeds the derived driver in a dedicated macOS Installer package. End users install that package from the DMG and do not need the source build tools.
+`scripts/build-driver.sh` applies `third_party/blackhole/blackhole-device-usb.patch` to the pinned source and builds a distinct `MiRemoteV2ch.driver`. The patch changes the Audio Device transport type to USB and assigns a separate CFPlugIn factory UUID. It does not modify an installed `BlackHole2ch.driver`.
 
 ## MiRemoteVoice
 
@@ -25,8 +25,4 @@ BlackHole remains an optional loopback-device choice. This fork includes `script
 - Reference release: `v1.0.0-beta.1`
 - Application license: MIT
 
-The Doubao compatibility design is informed by MiRemoteVoice: a side-by-side BlackHole-derived device reports its actual audio Device as USB transport so Doubao can enumerate it. This fork reimplements that idea as a pinned, source-built BlackHole patch instead of reusing MiRemoteVoice's version-specific binary replacement script.
-
-## RC003 product photo
-
-The RC003 product photo bundled as `RC003-remote-photo.png` was supplied by the user on 2026-07-17 for the physical-button mapping interface. It is preserved at its original 508 x 1030 aspect ratio. Copyright and trademark rights in the photo and depicted products remain with their respective owners; the GPL-3.0-only license for the program does not grant additional rights to this image or the Xiaomi marks.
+The compatibility design is informed by MiRemoteVoice: a side-by-side BlackHole-derived device reports its actual audio device as USB transport so selected applications can enumerate it. This fork independently builds from pinned BlackHole source and does not reuse MiRemoteVoice binaries or replacement scripts.
