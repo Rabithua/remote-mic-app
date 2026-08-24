@@ -2,7 +2,7 @@ import CoreGraphics
 
 enum SayAllDesign {
   static let statusPanelWidth: CGFloat = 340
-  static let statusPanelHeight: CGFloat = 530
+  static let statusPanelHeight: CGFloat = 505
   static let settingsSidebarWidth: CGFloat = 192
   static let sectionHorizontalPadding: CGFloat = 12
   static let sectionVerticalPadding: CGFloat = 7

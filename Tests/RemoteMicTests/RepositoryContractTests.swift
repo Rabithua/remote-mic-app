@@ -100,6 +100,7 @@ struct RepositoryContractTests {
 
   @Test func statusPanelRowsStayLeadingAlignedAndCompact() throws {
     let section = try contents("Sources/RemoteMic/SettingsSection.swift")
+    let statusPanel = try contents("Sources/RemoteMic/StatusPanelView.swift")
     let quickMapping = try contents("Sources/RemoteMic/QuickMappingMenu.swift")
     let quickMappingPresenter = try contents(
       "Sources/RemoteMic/QuickMappingMenuPresenter.swift"
@@ -114,7 +115,10 @@ struct RepositoryContractTests {
     #expect(quickMappingPresenter.contains("override func mouseUp(with event: NSEvent)"))
     #expect(quickMappingPresenter.contains("override func accessibilityPerformPress() -> Bool"))
     #expect(quickMappingPresenter.contains("setAccessibilityRole(.menuButton)"))
-    #expect(SayAllDesign.statusPanelHeight == 530)
+    #expect(SayAllDesign.statusPanelHeight == 505)
+    #expect(statusPanel.contains("ScrollView {\n        VStack(spacing: 0)"))
+    #expect(statusPanel.contains("          Divider()\n          footer"))
+    #expect(!statusPanel.contains("CFBundleShortVersionString"))
   }
 
   @Test func englishAndChineseLocalizationKeysMatch() throws {

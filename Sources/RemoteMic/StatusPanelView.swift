@@ -33,25 +33,22 @@ struct StatusPanelView: View {
     ).count
   }
 
-  private var version: String {
-    Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-      ?? "Development"
-  }
-
   var body: some View {
     VStack(spacing: 0) {
       header
 
       ScrollView {
-        VStack(spacing: 10) {
-          statusSection
-          actionSection
-          preferenceSection
+        VStack(spacing: 0) {
+          VStack(spacing: 10) {
+            statusSection
+            actionSection
+            preferenceSection
+          }
+
+          Divider()
+          footer
         }
       }
-
-      Divider()
-      footer
     }
     .frame(
       width: SayAllDesign.statusPanelWidth,
@@ -214,35 +211,26 @@ struct StatusPanelView: View {
   }
 
   private var footer: some View {
-    VStack(spacing: 0) {
-      HStack(spacing: 0) {
-        Button {
-          onOpenSettings(.connection)
-        } label: {
-          Label(localization.text("menu.open_settings"), systemImage: "gearshape")
-            .frame(maxWidth: .infinity, minHeight: 38)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-
-        Divider()
-
-        Button(action: onQuit) {
-          Label(localization.text("common.action.quit"), systemImage: "power")
-            .frame(maxWidth: .infinity, minHeight: 38)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+    HStack(spacing: 0) {
+      Button {
+        onOpenSettings(.connection)
+      } label: {
+        Label(localization.text("menu.open_settings"), systemImage: "gearshape")
+          .frame(maxWidth: .infinity, minHeight: 38)
+          .contentShape(Rectangle())
       }
-      .frame(height: 38)
+      .buttonStyle(.plain)
 
       Divider()
-      Text("\(localization.text("app.name")) \(version)")
-        .font(.caption2)
-        .foregroundStyle(.tertiary)
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 6)
+
+      Button(action: onQuit) {
+        Label(localization.text("common.action.quit"), systemImage: "power")
+          .frame(maxWidth: .infinity, minHeight: 38)
+          .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
     }
+    .frame(height: 38)
   }
 
   private var languageBinding: Binding<AppLanguage> {
