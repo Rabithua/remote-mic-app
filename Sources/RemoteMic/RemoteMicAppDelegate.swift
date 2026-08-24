@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class RemoteMicAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+final class RemoteMicAppDelegate: NSObject, NSApplicationDelegate {
   private let settings = AppSettings()
   private let runtimeState = AppRuntimeState()
   private lazy var model = BridgeAppModel(settings: settings, state: runtimeState)
@@ -11,15 +11,13 @@ final class RemoteMicAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDele
   private let navigation = SettingsNavigationModel()
 
   private var statusItem: NSStatusItem?
-  private let statusPopover = NSPopover()
-  private let statusPopoverDismissMonitor = StatusPopoverDismissMonitor()
+  private var statusMenuController: NativeStatusMenuController?
   private var settingsWindow: KeyableSettingsPanel?
   private var workspaceObservers: [NSObjectProtocol] = []
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApp.setActivationPolicy(.accessory)
     configureStatusItem()
-    configureStatusPopover()
     observeSystemLifecycle()
     model.startIfNeeded()
     if !settings.setupHasPresented {
@@ -29,7 +27,6 @@ final class RemoteMicAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDele
   }
 
   func applicationWillTerminate(_ notification: Notification) {
-    statusPopoverDismissMonitor.stop()
     workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
     workspaceObservers.removeAll()
     model.stop()
@@ -56,70 +53,24 @@ final class RemoteMicAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDele
       )
     }
     button.toolTip = localization.text("app.name")
-    button.target = self
-    button.action = #selector(toggleStatusPanel(_:))
-    button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-    statusItem = item
-  }
 
-  private func configureStatusPopover() {
-    let rootView = StatusPanelView(
+    let controller = NativeStatusMenuController(
       settings: settings,
       state: runtimeState,
       model: model,
       loginItem: loginItem,
+      localization: localization,
       onOpenSettings: { [weak self] page in
-        self?.closeStatusPanel()
         self?.openSettings(page: page)
       },
-      onOpenLoginItemSettings: { [weak self] in
-        self?.loginItem.openSystemSettings()
+      onLanguageChange: { [weak self] in
+        self?.statusItem?.button?.toolTip = self?.localization.text("app.name")
       },
       onQuit: { NSApp.terminate(nil) }
     )
-    .environmentObject(localization)
-
-    statusPopover.behavior = .transient
-    statusPopover.animates = true
-    statusPopover.contentSize = NSSize(
-      width: SayAllDesign.statusPanelWidth,
-      height: SayAllDesign.statusPanelHeight
-    )
-    statusPopover.contentViewController = NSHostingController(rootView: rootView)
-    statusPopover.delegate = self
-  }
-
-  @objc private func toggleStatusPanel(_ sender: NSStatusBarButton) {
-    if statusPopover.isShown {
-      closeStatusPanel()
-    } else {
-      loginItem.refresh()
-      model.refreshHIDAfterPermissionChange()
-      statusPopover.show(
-        relativeTo: sender.bounds,
-        of: sender,
-        preferredEdge: .minY
-      )
-    }
-  }
-
-  private func closeStatusPanel() {
-    statusPopover.performClose(nil)
-  }
-
-  func popoverDidShow(_ notification: Notification) {
-    guard let statusButton = statusItem?.button else { return }
-    statusPopoverDismissMonitor.start(
-      popover: statusPopover,
-      statusButton: statusButton,
-      onDismiss: { [weak self] in
-        self?.closeStatusPanel()
-      }
-    )
-  }
-
-  func popoverDidClose(_ notification: Notification) {
-    statusPopoverDismissMonitor.stop()
+    item.menu = controller.menu
+    statusMenuController = controller
+    statusItem = item
   }
 
   private func openSettings(page: SettingsPage) {

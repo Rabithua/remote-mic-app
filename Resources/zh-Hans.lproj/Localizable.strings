@@ -210,6 +210,7 @@
 "status_panel.section.actions" = "操作";
 "status_panel.section.preferences" = "偏好";
 "status_panel.section.status" = "状态";
+"status_menu.summary_format" = "%1$@ · %2$@";
 "shortcut.modifier.command" = "Command";
 "shortcut.modifier.control" = "Control";
 "shortcut.modifier.function" = "Fn";

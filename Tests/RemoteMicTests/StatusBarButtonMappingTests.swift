@@ -5,24 +5,6 @@ import Testing
 
 @MainActor
 struct StatusBarButtonMappingTests {
-  @Test(
-    "Status item click behavior",
-    arguments: [
-      (isRightClick: true, expected: true),
-      (isRightClick: false, expected: true),
-    ]
-  )
-  func statusItemClickBehavior(
-    scenario: (
-      isRightClick: Bool,
-      expected: Bool
-    )
-  ) {
-    #expect(
-      StatusItemClickPolicy.opensPanel(isRightClick: scenario.isRightClick) == scenario.expected
-    )
-  }
-
   @Test func quickActionSelectionUpdatesAndPersistsTheSingleClickMapping() throws {
     let suiteName = "RemoteMicTests.StatusBarMapping.Apply.\(UUID().uuidString)"
     let defaults = try #require(UserDefaults(suiteName: suiteName))
