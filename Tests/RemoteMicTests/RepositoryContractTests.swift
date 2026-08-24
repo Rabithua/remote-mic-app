@@ -115,9 +115,10 @@ struct RepositoryContractTests {
     #expect(quickMappingPresenter.contains("override func mouseUp(with event: NSEvent)"))
     #expect(quickMappingPresenter.contains("override func accessibilityPerformPress() -> Bool"))
     #expect(quickMappingPresenter.contains("setAccessibilityRole(.menuButton)"))
-    #expect(SayAllDesign.statusPanelHeight == 505)
+    #expect(SayAllDesign.statusPanelHeight == 540)
     #expect(statusPanel.contains("ScrollView {\n        VStack(spacing: 0)"))
-    #expect(statusPanel.contains("          Divider()\n          footer"))
+    #expect(statusPanel.contains("          Divider()\n          finalActions"))
+    #expect(statusPanel.contains("private var finalActions: some View {\n    VStack(spacing: 0)"))
     #expect(!statusPanel.contains("CFBundleShortVersionString"))
   }
 

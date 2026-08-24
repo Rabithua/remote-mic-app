@@ -46,7 +46,7 @@ struct StatusPanelView: View {
           }
 
           Divider()
-          footer
+          finalActions
         }
       }
     }
@@ -160,10 +160,13 @@ struct StatusPanelView: View {
         Image(systemName: "power")
           .foregroundStyle(.secondary)
           .frame(width: 18)
+        Text(localization.text("menu.launch_at_login"))
+        Spacer(minLength: 8)
         Toggle(
           localization.text("menu.launch_at_login"),
           isOn: $loginItem.isEnabled
         )
+        .labelsHidden()
         .toggleStyle(.switch)
         .controlSize(.small)
       }
@@ -210,27 +213,22 @@ struct StatusPanelView: View {
     }
   }
 
-  private var footer: some View {
-    HStack(spacing: 0) {
-      Button {
+  private var finalActions: some View {
+    VStack(spacing: 0) {
+      StatusPanelActionButton(
+        title: localization.text("menu.open_settings"),
+        systemImage: "gearshape"
+      ) {
         onOpenSettings(.connection)
-      } label: {
-        Label(localization.text("menu.open_settings"), systemImage: "gearshape")
-          .frame(maxWidth: .infinity, minHeight: 38)
-          .contentShape(Rectangle())
       }
-      .buttonStyle(.plain)
 
-      Divider()
-
-      Button(action: onQuit) {
-        Label(localization.text("common.action.quit"), systemImage: "power")
-          .frame(maxWidth: .infinity, minHeight: 38)
-          .contentShape(Rectangle())
-      }
-      .buttonStyle(.plain)
+      SettingsDivider()
+      StatusPanelActionButton(
+        title: localization.text("common.action.quit"),
+        systemImage: "power",
+        action: onQuit
+      )
     }
-    .frame(height: 38)
   }
 
   private var languageBinding: Binding<AppLanguage> {
