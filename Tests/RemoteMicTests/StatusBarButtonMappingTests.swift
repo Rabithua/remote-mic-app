@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 import Testing
 
@@ -20,7 +19,7 @@ struct StatusBarButtonMappingTests {
     )
   ) {
     #expect(
-      StatusItemClickPolicy.opensMenu(isRightClick: scenario.isRightClick) == scenario.expected
+      StatusItemClickPolicy.opensPanel(isRightClick: scenario.isRightClick) == scenario.expected
     )
   }
 
@@ -29,7 +28,7 @@ struct StatusBarButtonMappingTests {
     let defaults = try #require(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
     let settings = AppSettings(defaults: defaults)
-    let selection = StatusBarButtonActionSelection(button: .ok, action: .commandReturn)
+    let selection = QuickMappingActionSelection(button: .ok, action: .commandReturn)
 
     selection.apply(to: settings)
 
@@ -41,7 +40,7 @@ struct StatusBarButtonMappingTests {
   }
 
   @Test func unconfiguredCustomActionsAreNotOfferedInTheQuickMenu() {
-    let groups = StatusBarButtonMappingMenuFactory.actionGroups(
+    let groups = ButtonMappingPresentation.actionGroups(
       installedBundleIdentifiers: [],
       currentAction: .returnKey,
       hasConfiguredShortcut: false,
@@ -55,7 +54,7 @@ struct StatusBarButtonMappingTests {
   }
 
   @Test func configuredCustomActionsRemainAvailableForFastSwitching() {
-    let groups = StatusBarButtonMappingMenuFactory.actionGroups(
+    let groups = ButtonMappingPresentation.actionGroups(
       installedBundleIdentifiers: [PresetApplication.codex.bundleIdentifier],
       currentAction: .returnKey,
       hasConfiguredShortcut: true,
@@ -70,9 +69,8 @@ struct StatusBarButtonMappingTests {
     #expect(groups.map(\.category) == ButtonActionCategory.allCases)
   }
 
-  @Test func menuReflectsSelectedRemoteAndCurrentButtonAction() throws {
-    _ = NSApplication.shared
-    let suiteName = "RemoteMicTests.StatusBarMapping.Menu.\(UUID().uuidString)"
+  @Test func presentationReflectsSelectedRemoteAndCurrentButtonAction() throws {
+    let suiteName = "RemoteMicTests.StatusBarMapping.Presentation.\(UUID().uuidString)"
     let defaults = try #require(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
     let settings = AppSettings(defaults: defaults)
@@ -80,49 +78,22 @@ struct StatusBarButtonMappingTests {
     let profileID = settings.registerHIDRemote(fingerprint: "status-menu-remote")
     settings.selectRemoteProfile(profileID)
     let localization = LocalizationStore(settings: settings)
-    let target = StatusBarMenuTarget()
+    let profile = try #require(settings.selectedRemoteProfile)
+    let configured = settings.configuredAction(for: .ok, trigger: .singleClick)
 
-    let menu = StatusBarButtonMappingMenuFactory.makeMenu(
-      settings: settings,
-      connectedRemoteProfileIDs: [profileID],
-      localization: localization,
-      target: target,
-      actions: target.actions,
-      installedBundleIdentifiers: []
+    let remoteName = ButtonMappingPresentation.remoteDisplayName(
+      profile,
+      among: settings.remoteDeviceProfiles,
+      using: localization
+    )
+    let summary = ButtonMappingPresentation.actionSummary(
+      configured: configured,
+      customApplicationName: nil,
+      using: localization
     )
 
-    #expect(menu.items.first?.state == .on)
-    let profileSelection = try #require(
-      recursivelyFlatten(menu).first { $0.representedObject as? String == profileID.uuidString }
-    )
-    #expect(profileSelection.state == .on)
-    let returnSelection = try #require(
-      recursivelyFlatten(menu).first {
-        ($0.representedObject as? StatusBarButtonActionSelection)
-          == StatusBarButtonActionSelection(button: .ok, action: .returnKey)
-      }
-    )
-    #expect(returnSelection.state == .on)
-  }
-}
-
-@MainActor
-private final class StatusBarMenuTarget: NSObject {
-  var actions: StatusBarButtonMappingMenuActions {
-    StatusBarButtonMappingMenuActions(
-      toggleMapping: #selector(handleMenuItem(_:)),
-      selectRemoteProfile: #selector(handleMenuItem(_:)),
-      selectButtonAction: #selector(handleMenuItem(_:)),
-      openFullEditor: #selector(handleMenuItem(_:))
-    )
-  }
-
-  @objc private func handleMenuItem(_ sender: NSMenuItem) {}
-}
-
-@MainActor
-private func recursivelyFlatten(_ menu: NSMenu) -> [NSMenuItem] {
-  menu.items.flatMap { item in
-    [item] + (item.submenu.map(recursivelyFlatten) ?? [])
+    #expect(remoteName.isEmpty == false)
+    #expect(configured.action == .returnKey)
+    #expect(summary == configured.action.displayName(using: localization))
   }
 }

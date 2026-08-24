@@ -20,8 +20,8 @@ struct RepositoryContractTests {
         .version,
         .quit,
       ])
-    #expect(StatusItemClickPolicy.opensMenu(isRightClick: false))
-    #expect(StatusItemClickPolicy.opensMenu(isRightClick: true))
+    #expect(StatusItemClickPolicy.opensPanel(isRightClick: false))
+    #expect(StatusItemClickPolicy.opensPanel(isRightClick: true))
   }
 
   @Test func missingRuntimeRequirementsProduceMenuWarnings() {
@@ -65,14 +65,31 @@ struct RepositoryContractTests {
   }
 
   @Test func compactSettingsKeepSpecifiedWindowAndFullSurfaceHitTargets() throws {
-    let app = try contents("Sources/RemoteMic/RemoteMicApp.swift")
-    let settings = try contents("Sources/RemoteMic/SettingsView.swift")
+    let delegate = try contents("Sources/RemoteMic/RemoteMicAppDelegate.swift")
+    let statusPanel = try contents("Sources/RemoteMic/StatusPanelView.swift")
+    let settings = try combinedContents(
+      [
+        "Sources/RemoteMic/SettingsView.swift",
+        "Sources/RemoteMic/SettingsSidebarButton.swift",
+        "Sources/RemoteMic/ConnectionAudioSettingsView.swift",
+        "Sources/RemoteMic/ButtonMappingSettingsView.swift",
+        "Sources/RemoteMic/MappingActionControl.swift",
+        "Sources/RemoteMic/CustomApplicationEditorRow.swift",
+        "Sources/RemoteMic/PermissionRow.swift",
+        "Sources/RemoteMic/StatusPanelActionButton.swift",
+        "Sources/RemoteMic/QuickMappingMenu.swift",
+        "Sources/RemoteMic/StatusPanelView.swift",
+      ])
 
-    #expect(app.contains("NSApp.setActivationPolicy(.accessory)"))
-    #expect(app.contains("[.leftMouseUp, .rightMouseUp]"))
-    #expect(app.contains("width: 820, height: 620"))
-    #expect(app.contains("width: 760, height: 540"))
-    #expect(settings.components(separatedBy: ".contentShape(Rectangle())").count >= 8)
+    #expect(delegate.contains("NSApp.setActivationPolicy(.accessory)"))
+    #expect(delegate.contains("[.leftMouseUp, .rightMouseUp]"))
+    #expect(delegate.contains("width: 820, height: 620"))
+    #expect(delegate.contains("width: 760, height: 540"))
+    #expect(delegate.contains("NSPopover()"))
+    #expect(statusPanel.contains(".background(.regularMaterial)"))
+    #expect(statusPanel.contains("SayAllDesign.statusPanelWidth"))
+    #expect(statusPanel.contains("SayAllDesign.statusPanelHeight"))
+    #expect(settings.components(separatedBy: ".contentShape(Rectangle())").count >= 12)
   }
 
   @Test func englishAndChineseLocalizationKeysMatch() throws {
@@ -84,6 +101,9 @@ struct RepositoryContractTests {
       "menu.launch_at_login",
       "setup.action.done",
       "permissions.restart_hint",
+      "status_panel.section.status",
+      "status_panel.section.actions",
+      "status_panel.section.preferences",
     ] {
       #expect(english[required]?.isEmpty == false)
       #expect(chinese[required]?.isEmpty == false)
@@ -148,6 +168,10 @@ struct RepositoryContractTests {
       contentsOf: repositoryRoot.appendingPathComponent(relativePath),
       encoding: .utf8
     )
+  }
+
+  private func combinedContents(_ relativePaths: [String]) throws -> String {
+    try relativePaths.map(contents).joined(separator: "\n")
   }
 
   private func propertyList(_ relativePath: String) throws -> [String: Any] {
