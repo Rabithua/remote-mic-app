@@ -202,7 +202,6 @@
 "settings.section.connection_audio" = "Connection & Audio";
 "settings.section.permissions" = "Permissions";
 "settings.window.title" = "Settings";
-"setup.action.done" = "Done";
 "status_panel.hid" = "HID buttons";
 "status_panel.needs_attention" = "Needs attention";
 "status_panel.ready" = "Ready";

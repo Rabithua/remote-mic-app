@@ -14,7 +14,7 @@ struct SettingsView: View {
       SettingsWindowHeader(
         title: localization.text("settings.window.title"),
         closeLabel: localization.text("common.action.close"),
-        onClose: onClose
+        onClose: close
       )
       Divider()
 
@@ -57,20 +57,6 @@ struct SettingsView: View {
       .padding(.horizontal, 8)
 
       Spacer(minLength: 12)
-      Divider()
-
-      Button {
-        settings.completeSetup()
-        onClose()
-      } label: {
-        Text(localization.text("setup.action.done"))
-          .fontWeight(.semibold)
-          .frame(maxWidth: .infinity, minHeight: 34)
-          .contentShape(Rectangle())
-      }
-      .buttonStyle(.borderedProminent)
-      .controlSize(.regular)
-      .padding(12)
     }
     .frame(width: SayAllDesign.settingsSidebarWidth)
     .background(.quinary.opacity(0.45))
@@ -86,5 +72,10 @@ struct SettingsView: View {
     case .permissions:
       PermissionSettingsView(model: model)
     }
+  }
+
+  private func close() {
+    settings.completeSetup()
+    onClose()
   }
 }

@@ -83,6 +83,9 @@ struct RepositoryContractTests {
     #expect(delegate.contains("KeyableSettingsPanel("))
     #expect(settings.contains("xmark.circle.fill"))
     #expect(settings.contains("settings.window.title"))
+    #expect(settings.contains("onClose: close"))
+    #expect(settings.contains("settings.completeSetup()"))
+    #expect(!settings.contains("setup.action.done"))
     #expect(delegate.contains("item.menu = controller.menu"))
     #expect(!delegate.contains("NSPopover"))
     #expect(settings.components(separatedBy: ".contentShape(Rectangle())").count >= 12)
@@ -108,7 +111,6 @@ struct RepositoryContractTests {
     for required in [
       "settings.section.connection_audio",
       "menu.launch_at_login",
-      "setup.action.done",
       "permissions.restart_hint",
       "status_panel.section.status",
       "status_panel.section.actions",
