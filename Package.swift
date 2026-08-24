@@ -60,6 +60,8 @@ let package = Package(
         "ShortcutCaptureMonitor.swift",
         "StatusPanelActionButton.swift",
         "StatusPanelView.swift",
+        "StatusPopoverDismissMonitor.swift",
+        "StatusPopoverDismissPolicy.swift",
         "TestTone.swift",
         "VoiceFnTapSessionController.swift",
         "VoiceInputDestinationCoordinator.swift",
