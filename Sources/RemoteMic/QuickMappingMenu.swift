@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct QuickMappingMenu: View {
@@ -9,81 +10,98 @@ struct QuickMappingMenu: View {
   @EnvironmentObject private var localization: LocalizationStore
 
   var body: some View {
-    Menu {
-      Button {
-        settings.customMappingEnabled.toggle()
-        model.applyHIDSettings()
-      } label: {
-        if settings.customMappingEnabled {
-          Label(
-            localization.text("button_mapping.toggle.enabled"),
-            systemImage: "checkmark"
-          )
-        } else {
-          Text(localization.text("button_mapping.toggle.enabled"))
-        }
-      }
-
-      remoteSelector
-      Divider()
-
-      ForEach(RemoteButton.allCases) { button in
-        buttonMenu(button)
-      }
-
-      Divider()
-      Button(localization.text("menu.button_mapping.open_full_editor")) {
-        onOpenEditor()
-      }
-    } label: {
-      HStack(spacing: 10) {
-        Image(systemName: "keyboard")
-          .foregroundStyle(.secondary)
-          .frame(width: 18)
-        Text(localization.text("menu.button_mapping.title"))
-        Spacer(minLength: 8)
-        Image(systemName: "chevron.right")
-          .font(.caption)
-          .foregroundStyle(.tertiary)
-      }
-      .padding(.horizontal, SayAllDesign.rowHorizontalPadding)
-      .padding(.vertical, 8)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .contentShape(Rectangle())
+    HStack(spacing: 10) {
+      Image(systemName: "keyboard")
+        .foregroundStyle(.secondary)
+        .frame(width: 18)
+      Text(localization.text("menu.button_mapping.title"))
+      Spacer(minLength: 8)
+      Image(systemName: "chevron.right")
+        .font(.caption)
+        .foregroundStyle(.tertiary)
     }
-    .menuStyle(.borderlessButton)
+    .padding(.horizontal, SayAllDesign.rowHorizontalPadding)
+    .padding(.vertical, 8)
+    .frame(width: SayAllDesign.statusPanelWidth, alignment: .leading)
+    .contentShape(Rectangle())
+    .overlay {
+      QuickMappingMenuPresenter(
+        accessibilityLabel: localization.text("menu.button_mapping.title"),
+        makeMenu: makeMenu
+      )
+    }
   }
 
-  @ViewBuilder
-  private var remoteSelector: some View {
+  private func makeMenu() -> NSMenu {
+    let menu = NSMenu()
+    menu.autoenablesItems = false
+
+    menu.addItem(
+      actionItem(
+        localization.text("button_mapping.toggle.enabled"),
+        state: settings.customMappingEnabled ? .on : .off
+      ) {
+        settings.customMappingEnabled.toggle()
+        model.applyHIDSettings()
+      }
+    )
+    menu.addItem(remoteSelectorItem())
+    menu.addItem(.separator())
+
+    for button in RemoteButton.allCases {
+      menu.addItem(buttonMenuItem(button))
+    }
+
+    menu.addItem(.separator())
+    menu.addItem(
+      actionItem(localization.text("menu.button_mapping.open_full_editor")) {
+        onOpenEditor()
+      }
+    )
+    return menu
+  }
+
+  private func remoteSelectorItem() -> NSMenuItem {
     let connectedProfiles = settings.remoteDeviceProfiles.filter {
       state.connectedRemoteProfileIDs.contains($0.id)
     }
-    if connectedProfiles.isEmpty {
-      Text(localization.text("menu.button_mapping.no_remote"))
-    } else {
-      Menu(localization.text("menu.button_mapping.remote")) {
-        ForEach(connectedProfiles) { profile in
-          Button {
-            model.selectRemoteProfile(profile.id)
-          } label: {
-            let name = ButtonMappingPresentation.remoteDisplayName(
-              profile,
-              among: settings.remoteDeviceProfiles,
-              using: localization
-            )
-            if settings.selectedRemoteProfileID == profile.id {
-              Label(name, systemImage: "checkmark")
-            } else {
-              Text(name)
-            }
-          }
-        }
-      }
+    guard !connectedProfiles.isEmpty else {
+      let item = NSMenuItem(
+        title: localization.text("menu.button_mapping.no_remote"),
+        action: nil,
+        keyEquivalent: ""
+      )
+      item.isEnabled = false
+      return item
     }
+
+    let item = NSMenuItem(
+      title: localization.text("menu.button_mapping.remote"),
+      action: nil,
+      keyEquivalent: ""
+    )
+    let submenu = NSMenu()
+    submenu.autoenablesItems = false
+    for profile in connectedProfiles {
+      let name = ButtonMappingPresentation.remoteDisplayName(
+        profile,
+        among: settings.remoteDeviceProfiles,
+        using: localization
+      )
+      submenu.addItem(
+        actionItem(
+          name,
+          state: settings.selectedRemoteProfileID == profile.id ? .on : .off
+        ) {
+          model.selectRemoteProfile(profile.id)
+        }
+      )
+    }
+    item.submenu = submenu
+    return item
   }
 
-  private func buttonMenu(_ button: RemoteButton) -> some View {
+  private func buttonMenuItem(_ button: RemoteButton) -> NSMenuItem {
     let configured = settings.configuredAction(for: button, trigger: .singleClick)
     let customApplicationName = settings.customApplicationProfile(
       id: configured.applicationProfileID
@@ -99,44 +117,79 @@ struct QuickMappingMenu: View {
       arguments: [button.shortLabel(using: localization), summary]
     )
 
-    return Menu(title) {
-      actionButton(.disabled, for: button, configured: configured)
-      Divider()
+    let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+    let submenu = NSMenu()
+    submenu.autoenablesItems = false
+    submenu.addItem(actionItem(.disabled, for: button, configured: configured))
+    submenu.addItem(.separator())
 
-      let groups = ButtonMappingPresentation.actionGroups(
-        installedBundleIdentifiers: PresetApplication.installedBundleIdentifiers,
-        currentAction: configured.action,
-        hasConfiguredShortcut: configured.shortcut != nil,
-        hasConfiguredApplication: customApplicationName != nil
+    let groups = ButtonMappingPresentation.actionGroups(
+      installedBundleIdentifiers: PresetApplication.installedBundleIdentifiers,
+      currentAction: configured.action,
+      hasConfiguredShortcut: configured.shortcut != nil,
+      hasConfiguredApplication: customApplicationName != nil
+    )
+    for group in groups {
+      let groupItem = NSMenuItem(
+        title: localization.text(group.category.localizationKey),
+        action: nil,
+        keyEquivalent: ""
       )
-      ForEach(groups, id: \.category) { group in
-        Menu(localization.text(group.category.localizationKey)) {
-          ForEach(group.actions) { action in
-            actionButton(action, for: button, configured: configured)
-          }
-        }
+      let groupMenu = NSMenu()
+      groupMenu.autoenablesItems = false
+      for action in group.actions {
+        groupMenu.addItem(actionItem(action, for: button, configured: configured))
       }
+      groupItem.submenu = groupMenu
+      submenu.addItem(groupItem)
     }
+    item.submenu = submenu
+    return item
   }
 
-  private func actionButton(
+  private func actionItem(
     _ action: ButtonAction,
     for button: RemoteButton,
     configured: ConfiguredButtonAction
-  ) -> some View {
-    Button {
+  ) -> NSMenuItem {
+    let title =
+      action == .disabled
+      ? localization.text("button_mapping.action.disable_switch")
+      : action.displayName(using: localization)
+    return actionItem(title, state: configured.action == action ? .on : .off) {
       settings.setAction(action, for: button, trigger: .singleClick)
       model.applyHIDSettings()
-    } label: {
-      let title =
-        action == .disabled
-        ? localization.text("button_mapping.action.disable_switch")
-        : action.displayName(using: localization)
-      if configured.action == action {
-        Label(title, systemImage: "checkmark")
-      } else {
-        Text(title)
-      }
     }
+  }
+
+  private func actionItem(
+    _ title: String,
+    state: NSControl.StateValue = .off,
+    action: @escaping @MainActor () -> Void
+  ) -> NSMenuItem {
+    let target = QuickMappingMenuActionTarget(action: action)
+    let item = NSMenuItem(
+      title: title,
+      action: #selector(QuickMappingMenuActionTarget.perform(_:)),
+      keyEquivalent: ""
+    )
+    item.target = target
+    item.representedObject = target
+    item.state = state
+    item.isEnabled = true
+    return item
+  }
+}
+
+@MainActor
+private final class QuickMappingMenuActionTarget: NSObject {
+  let action: @MainActor () -> Void
+
+  init(action: @escaping @MainActor () -> Void) {
+    self.action = action
+  }
+
+  @objc func perform(_ sender: NSMenuItem) {
+    action()
   }
 }

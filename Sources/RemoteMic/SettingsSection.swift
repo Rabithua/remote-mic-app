@@ -10,7 +10,7 @@ struct SettingsSection<Content: View>: View {
   }
 
   var body: some View {
-    VStack(spacing: 0) {
+    VStack(alignment: .leading, spacing: 0) {
       HStack {
         Text(title)
           .font(.caption)
@@ -23,5 +23,6 @@ struct SettingsSection<Content: View>: View {
 
       content
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
