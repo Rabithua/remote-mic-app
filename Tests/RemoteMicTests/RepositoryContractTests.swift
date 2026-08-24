@@ -13,15 +13,12 @@ struct RepositoryContractTests {
         .hidStatus,
         .reconnect,
         .quickMapping,
-        .settings,
         .launchAtLogin,
         .language,
         .logs,
-        .version,
+        .settings,
         .quit,
       ])
-    #expect(StatusItemClickPolicy.opensPanel(isRightClick: false))
-    #expect(StatusItemClickPolicy.opensPanel(isRightClick: true))
   }
 
   @Test func missingRuntimeRequirementsProduceMenuWarnings() {
@@ -66,7 +63,6 @@ struct RepositoryContractTests {
 
   @Test func compactSettingsKeepSpecifiedWindowAndFullSurfaceHitTargets() throws {
     let delegate = try contents("Sources/RemoteMic/RemoteMicAppDelegate.swift")
-    let statusPanel = try contents("Sources/RemoteMic/StatusPanelView.swift")
     let settings = try combinedContents(
       [
         "Sources/RemoteMic/SettingsView.swift",
@@ -77,13 +73,9 @@ struct RepositoryContractTests {
         "Sources/RemoteMic/MappingActionControl.swift",
         "Sources/RemoteMic/CustomApplicationEditorRow.swift",
         "Sources/RemoteMic/PermissionRow.swift",
-        "Sources/RemoteMic/StatusPanelActionButton.swift",
-        "Sources/RemoteMic/QuickMappingMenu.swift",
-        "Sources/RemoteMic/StatusPanelView.swift",
       ])
 
     #expect(delegate.contains("NSApp.setActivationPolicy(.accessory)"))
-    #expect(delegate.contains("[.leftMouseUp, .rightMouseUp]"))
     #expect(delegate.contains("width: 820, height: 620"))
     #expect(delegate.contains("width: 760, height: 540"))
     #expect(delegate.contains("panel.setContentSize(NSSize(width: 820, height: 620))"))
@@ -91,35 +83,25 @@ struct RepositoryContractTests {
     #expect(delegate.contains("KeyableSettingsPanel("))
     #expect(settings.contains("xmark.circle.fill"))
     #expect(settings.contains("settings.window.title"))
-    #expect(delegate.contains("NSPopover()"))
-    #expect(statusPanel.contains(".background(.regularMaterial)"))
-    #expect(statusPanel.contains("SayAllDesign.statusPanelWidth"))
-    #expect(statusPanel.contains("SayAllDesign.statusPanelHeight"))
+    #expect(settings.contains("onClose: close"))
+    #expect(settings.contains("settings.completeSetup()"))
+    #expect(!settings.contains("setup.action.done"))
+    #expect(delegate.contains("item.menu = controller.menu"))
+    #expect(!delegate.contains("NSPopover"))
     #expect(settings.components(separatedBy: ".contentShape(Rectangle())").count >= 12)
   }
 
-  @Test func statusPanelRowsStayLeadingAlignedAndCompact() throws {
-    let section = try contents("Sources/RemoteMic/SettingsSection.swift")
-    let statusPanel = try contents("Sources/RemoteMic/StatusPanelView.swift")
-    let quickMapping = try contents("Sources/RemoteMic/QuickMappingMenu.swift")
-    let quickMappingPresenter = try contents(
-      "Sources/RemoteMic/QuickMappingMenuPresenter.swift"
-    )
+  @Test func statusItemUsesANativeMenuAndSystemSubmenus() throws {
+    let statusMenu = try contents("Sources/RemoteMic/NativeStatusMenuController.swift")
 
-    #expect(section.contains("VStack(alignment: .leading, spacing: 0)"))
-    #expect(section.contains(".frame(maxWidth: .infinity, alignment: .leading)"))
-    #expect(
-      quickMapping.contains(".frame(width: SayAllDesign.statusPanelWidth, alignment: .leading)")
-    )
-    #expect(quickMapping.contains(".overlay"))
-    #expect(quickMappingPresenter.contains("override func mouseUp(with event: NSEvent)"))
-    #expect(quickMappingPresenter.contains("override func accessibilityPerformPress() -> Bool"))
-    #expect(quickMappingPresenter.contains("setAccessibilityRole(.menuButton)"))
-    #expect(SayAllDesign.statusPanelHeight == 540)
-    #expect(statusPanel.contains("ScrollView {\n        VStack(spacing: 0)"))
-    #expect(statusPanel.contains("          Divider()\n          finalActions"))
-    #expect(statusPanel.contains("private var finalActions: some View {\n    VStack(spacing: 0)"))
-    #expect(!statusPanel.contains("CFBundleShortVersionString"))
+    #expect(statusMenu.contains("final class NativeStatusMenuController"))
+    #expect(statusMenu.contains("NSMenuDelegate"))
+    #expect(statusMenu.contains(".sectionHeader("))
+    #expect(statusMenu.contains("quickMappingItem.submenu"))
+    #expect(statusMenu.contains("languageItem.submenu"))
+    #expect(statusMenu.contains("keyEquivalent: \",\""))
+    #expect(statusMenu.contains("keyEquivalent: \"q\""))
+    #expect(!statusMenu.contains("CFBundleShortVersionString"))
   }
 
   @Test func englishAndChineseLocalizationKeysMatch() throws {
@@ -129,7 +111,6 @@ struct RepositoryContractTests {
     for required in [
       "settings.section.connection_audio",
       "menu.launch_at_login",
-      "setup.action.done",
       "permissions.restart_hint",
       "status_panel.section.status",
       "status_panel.section.actions",

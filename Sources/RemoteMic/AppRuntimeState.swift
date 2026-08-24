@@ -7,11 +7,10 @@ enum StatusMenuEntry: String, CaseIterable {
   case hidStatus
   case reconnect
   case quickMapping
-  case settings
   case launchAtLogin
   case language
   case logs
-  case version
+  case settings
   case quit
 }
 

@@ -1,9 +1,5 @@
 import Foundation
 
-enum StatusItemClickPolicy {
-  static func opensPanel(isRightClick _: Bool) -> Bool { true }
-}
-
 @MainActor
 struct QuickMappingActionSelection: Equatable {
   let button: RemoteButton

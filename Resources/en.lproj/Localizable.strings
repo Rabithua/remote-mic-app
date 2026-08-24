@@ -202,7 +202,6 @@
 "settings.section.connection_audio" = "Connection & Audio";
 "settings.section.permissions" = "Permissions";
 "settings.window.title" = "Settings";
-"setup.action.done" = "Done";
 "status_panel.hid" = "HID buttons";
 "status_panel.needs_attention" = "Needs attention";
 "status_panel.ready" = "Ready";
@@ -210,6 +209,7 @@
 "status_panel.section.actions" = "Actions";
 "status_panel.section.preferences" = "Preferences";
 "status_panel.section.status" = "Status";
+"status_menu.summary_format" = "%1$@ · %2$@";
 "shortcut.modifier.command" = "Command";
 "shortcut.modifier.control" = "Control";
 "shortcut.modifier.function" = "Fn";

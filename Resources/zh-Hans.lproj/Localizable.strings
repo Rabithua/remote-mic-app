@@ -202,7 +202,6 @@
 "settings.section.connection_audio" = "连接与音频";
 "settings.section.permissions" = "权限";
 "settings.window.title" = "设置";
-"setup.action.done" = "完成";
 "status_panel.hid" = "HID 按键";
 "status_panel.needs_attention" = "需要处理";
 "status_panel.ready" = "运行正常";
@@ -210,6 +209,7 @@
 "status_panel.section.actions" = "操作";
 "status_panel.section.preferences" = "偏好";
 "status_panel.section.status" = "状态";
+"status_menu.summary_format" = "%1$@ · %2$@";
 "shortcut.modifier.command" = "Command";
 "shortcut.modifier.control" = "Control";
 "shortcut.modifier.function" = "Fn";
