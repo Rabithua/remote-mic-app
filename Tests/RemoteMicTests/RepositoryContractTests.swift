@@ -127,6 +127,8 @@ struct RepositoryContractTests {
       "com.hd838a.RemoteMic",
       "com.hd838a.MiRemoteV2ch",
       "refusing to replace a symbolic-link destination",
+      "refusing privileged install outside secure handoff",
+      "/private/tmp/remote-mic-install.",
       "Bundle ID does not match",
       ".backup-$timestamp",
       "Previous.app",

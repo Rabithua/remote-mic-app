@@ -12,6 +12,7 @@ DRIVER_BUNDLE_ID="com.hd838a.MiRemoteV2ch"
 APP_STAGE_ROOT=""
 DRIVER_STAGE_ROOT=""
 DRIVER_BACKUP=""
+HANDOFF_ROOT=""
 
 bundle_identifier() {
   local bundle="$1"
@@ -47,13 +48,40 @@ cleanup_privileged_stages() {
   fi
 }
 
+is_safe_handoff_root() {
+  [[ "$ROOT" == /private/tmp/remote-mic-install.* && -d "$ROOT" && ! -L "$ROOT" ]]
+}
+
+cleanup_parent_handoff() {
+  if [[ -n "$HANDOFF_ROOT" && "$HANDOFF_ROOT" == /private/tmp/remote-mic-install.* ]]; then
+    chmod -R u+w "$HANDOFF_ROOT" 2>/dev/null || true
+    rm -rf -- "$HANDOFF_ROOT" 2>/dev/null || true
+  fi
+}
+
+cleanup_privileged_handoff() {
+  if is_safe_handoff_root; then
+    rm -rf -- "$ROOT"
+  fi
+}
+
 privileged_install() {
   local driver_needs_install="$1"
   if [[ "$EUID" -ne 0 ]]; then
     print -u2 "privileged install phase must run as root"
     exit 1
   fi
-  trap cleanup_privileged_stages EXIT INT TERM
+  if ! is_safe_handoff_root; then
+    print -u2 "refusing privileged install outside secure handoff"
+    exit 1
+  fi
+  if find "$ROOT" -type l -print -quit | grep -q .; then
+    print -u2 "refusing a handoff containing symbolic links"
+    exit 1
+  fi
+  chown -R root:wheel "$ROOT"
+  chmod -R go-w "$ROOT"
+  trap 'cleanup_privileged_stages; cleanup_privileged_handoff' EXIT INT TERM
   validate_destinations
   "$ROOT/scripts/verify-app.sh" "$BUILT_APP"
 
@@ -151,11 +179,30 @@ if [[ "$driver_needs_install" == "1" ]]; then
   "$ROOT/scripts/verify-driver.sh" "$BUILT_DRIVER"
 fi
 
-osascript - "$ROOT" "$driver_needs_install" <<'APPLESCRIPT'
+HANDOFF_ROOT="$(mktemp -d /private/tmp/remote-mic-install.XXXXXX)"
+trap cleanup_parent_handoff EXIT INT TERM
+mkdir -p "$HANDOFF_ROOT/dist" "$HANDOFF_ROOT/scripts"
+ditto --norsrc --noextattr --noqtn --noacl "$BUILT_APP" "$HANDOFF_ROOT/dist/SayAll.app"
+if [[ "$driver_needs_install" == "1" ]]; then
+  ditto --norsrc --noextattr --noqtn --noacl \
+    "$BUILT_DRIVER" "$HANDOFF_ROOT/dist/MiRemoteV2ch.driver"
+fi
+install -m 755 \
+  "$ROOT/scripts/install-local.sh" \
+  "$ROOT/scripts/verify-app.sh" \
+  "$ROOT/scripts/verify-driver.sh" \
+  "$HANDOFF_ROOT/scripts/"
+"$HANDOFF_ROOT/scripts/verify-app.sh" "$HANDOFF_ROOT/dist/SayAll.app"
+if [[ "$driver_needs_install" == "1" ]]; then
+  "$HANDOFF_ROOT/scripts/verify-driver.sh" "$HANDOFF_ROOT/dist/MiRemoteV2ch.driver"
+fi
+chmod -R a-w "$HANDOFF_ROOT"
+
+osascript - "$HANDOFF_ROOT" "$driver_needs_install" <<'APPLESCRIPT'
 on run arguments
-  set repositoryRoot to item 1 of arguments
+  set handoffRoot to item 1 of arguments
   set driverFlag to item 2 of arguments
-  set installerPath to repositoryRoot & "/scripts/install-local.sh"
+  set installerPath to handoffRoot & "/scripts/install-local.sh"
   set installCommand to quoted form of installerPath & " --privileged-install " & quoted form of driverFlag
   do shell script installCommand with administrator privileges
 end run
