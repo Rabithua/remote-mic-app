@@ -137,6 +137,7 @@
 "custom_application.focus.title" = "聚焦方式";
 "custom_application.name" = "名称";
 "custom_application.not_configured" = "尚未选择 APP";
+"custom_application.remove" = "移除自定义 App";
 "custom_application.saved.title" = "已保存的自定义 App";
 "keyboard.key.clear" = "Clear（清除）";
 "keyboard.key.end" = "End（行尾）";
@@ -200,6 +201,13 @@
 "settings.section.connection_audio" = "连接与音频";
 "settings.section.permissions" = "权限";
 "setup.action.done" = "完成";
+"status_panel.hid" = "HID 按键";
+"status_panel.needs_attention" = "需要处理";
+"status_panel.ready" = "运行正常";
+"status_panel.review_permissions" = "检查权限";
+"status_panel.section.actions" = "操作";
+"status_panel.section.preferences" = "偏好";
+"status_panel.section.status" = "状态";
 "shortcut.modifier.command" = "Command";
 "shortcut.modifier.control" = "Control";
 "shortcut.modifier.function" = "Fn";

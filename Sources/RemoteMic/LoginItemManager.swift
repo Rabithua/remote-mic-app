@@ -49,7 +49,10 @@ final class LoginItemManager {
     refresh()
   }
 
-  var isEnabled: Bool { state.isEnabled }
+  var isEnabled: Bool {
+    get { state.isEnabled }
+    set { setEnabled(newValue) }
+  }
 
   func refresh() {
     switch service.status {

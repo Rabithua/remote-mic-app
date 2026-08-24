@@ -137,6 +137,7 @@
 "custom_application.focus.title" = "Focus behavior";
 "custom_application.name" = "Name";
 "custom_application.not_configured" = "No app selected";
+"custom_application.remove" = "Remove custom app";
 "custom_application.saved.title" = "Saved custom apps";
 "keyboard.key.clear" = "Clear";
 "keyboard.key.end" = "End";
@@ -200,6 +201,13 @@
 "settings.section.connection_audio" = "Connection & Audio";
 "settings.section.permissions" = "Permissions";
 "setup.action.done" = "Done";
+"status_panel.hid" = "HID buttons";
+"status_panel.needs_attention" = "Needs attention";
+"status_panel.ready" = "Ready";
+"status_panel.review_permissions" = "Review Permissions";
+"status_panel.section.actions" = "Actions";
+"status_panel.section.preferences" = "Preferences";
+"status_panel.section.status" = "Status";
 "shortcut.modifier.command" = "Command";
 "shortcut.modifier.control" = "Control";
 "shortcut.modifier.function" = "Fn";
