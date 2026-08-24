@@ -12,6 +12,7 @@ final class RemoteMicAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDele
 
   private var statusItem: NSStatusItem?
   private let statusPopover = NSPopover()
+  private let statusPopoverDismissMonitor = StatusPopoverDismissMonitor()
   private var settingsWindow: KeyableSettingsPanel?
   private var workspaceObservers: [NSObjectProtocol] = []
 
@@ -28,6 +29,7 @@ final class RemoteMicAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDele
   }
 
   func applicationWillTerminate(_ notification: Notification) {
+    statusPopoverDismissMonitor.stop()
     workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
     workspaceObservers.removeAll()
     model.stop()
@@ -103,6 +105,21 @@ final class RemoteMicAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDele
 
   private func closeStatusPanel() {
     statusPopover.performClose(nil)
+  }
+
+  func popoverDidShow(_ notification: Notification) {
+    guard let statusButton = statusItem?.button else { return }
+    statusPopoverDismissMonitor.start(
+      popover: statusPopover,
+      statusButton: statusButton,
+      onDismiss: { [weak self] in
+        self?.closeStatusPanel()
+      }
+    )
+  }
+
+  func popoverDidClose(_ notification: Notification) {
+    statusPopoverDismissMonitor.stop()
   }
 
   private func openSettings(page: SettingsPage) {
