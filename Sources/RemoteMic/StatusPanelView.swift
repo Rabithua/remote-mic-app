@@ -160,10 +160,13 @@ struct StatusPanelView: View {
         Image(systemName: "power")
           .foregroundStyle(.secondary)
           .frame(width: 18)
+        Text(localization.text("menu.launch_at_login"))
+        Spacer(minLength: 8)
         Toggle(
           localization.text("menu.launch_at_login"),
           isOn: $loginItem.isEnabled
         )
+        .labelsHidden()
         .toggleStyle(.switch)
         .controlSize(.small)
       }
