@@ -114,7 +114,7 @@ struct RepositoryContractTests {
     #expect(quickMappingPresenter.contains("override func mouseUp(with event: NSEvent)"))
     #expect(quickMappingPresenter.contains("override func accessibilityPerformPress() -> Bool"))
     #expect(quickMappingPresenter.contains("setAccessibilityRole(.menuButton)"))
-    #expect(SayAllDesign.statusPanelHeight == 560)
+    #expect(SayAllDesign.statusPanelHeight == 530)
   }
 
   @Test func englishAndChineseLocalizationKeysMatch() throws {
