@@ -12,7 +12,7 @@ final class RemoteMicAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDele
 
   private var statusItem: NSStatusItem?
   private let statusPopover = NSPopover()
-  private var settingsWindow: NSWindow?
+  private var settingsWindow: KeyableSettingsPanel?
   private var workspaceObservers: [NSObjectProtocol] = []
 
   func applicationDidFinishLaunching(_ notification: Notification) {
@@ -112,19 +112,31 @@ final class RemoteMicAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDele
         settings: settings,
         state: runtimeState,
         model: model,
-        navigation: navigation
+        navigation: navigation,
+        onClose: { [weak self] in
+          self?.settingsWindow?.orderOut(nil)
+        }
       )
       .environmentObject(localization)
       let controller = NSHostingController(rootView: rootView)
-      let window = NSWindow(contentViewController: controller)
-      window.title = localization.text("app.name")
-      window.setContentSize(NSSize(width: 820, height: 620))
-      window.minSize = NSSize(width: 760, height: 540)
-      window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-      window.titlebarAppearsTransparent = true
-      window.isReleasedWhenClosed = false
-      window.center()
-      settingsWindow = window
+      let panel = KeyableSettingsPanel(
+        contentRect: NSRect(x: 0, y: 0, width: 820, height: 620),
+        styleMask: [.borderless, .nonactivatingPanel, .resizable],
+        backing: .buffered,
+        defer: false
+      )
+      panel.contentViewController = controller
+      panel.minSize = NSSize(width: 760, height: 540)
+      panel.setContentSize(NSSize(width: 820, height: 620))
+      panel.isOpaque = false
+      panel.backgroundColor = .clear
+      panel.hasShadow = false
+      panel.hidesOnDeactivate = false
+      panel.isMovableByWindowBackground = true
+      panel.level = .floating
+      panel.isReleasedWhenClosed = false
+      panel.center()
+      settingsWindow = panel
     }
     settings.markSetupPresented()
     NSApp.activate(ignoringOtherApps: true)

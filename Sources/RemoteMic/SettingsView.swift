@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct SettingsView: View {
@@ -6,17 +5,28 @@ struct SettingsView: View {
   @Bindable var state: AppRuntimeState
   let model: BridgeAppModel
   @Bindable var navigation: SettingsNavigationModel
+  let onClose: () -> Void
 
   @EnvironmentObject private var localization: LocalizationStore
 
   var body: some View {
-    HStack(spacing: 0) {
-      sidebar
+    VStack(spacing: 0) {
+      SettingsWindowHeader(
+        title: localization.text("settings.window.title"),
+        closeLabel: localization.text("common.action.close"),
+        onClose: onClose
+      )
       Divider()
-      detail
+
+      HStack(spacing: 0) {
+        sidebar
+        Divider()
+        detail
+      }
     }
     .frame(minWidth: 760, minHeight: 540)
     .background(.regularMaterial)
+    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
   }
 
   private var sidebar: some View {
@@ -51,7 +61,7 @@ struct SettingsView: View {
 
       Button {
         settings.completeSetup()
-        NSApp.keyWindow?.close()
+        onClose()
       } label: {
         Text(localization.text("setup.action.done"))
           .fontWeight(.semibold)

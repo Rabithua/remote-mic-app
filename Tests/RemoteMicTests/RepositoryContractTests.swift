@@ -70,6 +70,7 @@ struct RepositoryContractTests {
     let settings = try combinedContents(
       [
         "Sources/RemoteMic/SettingsView.swift",
+        "Sources/RemoteMic/SettingsWindowHeader.swift",
         "Sources/RemoteMic/SettingsSidebarButton.swift",
         "Sources/RemoteMic/ConnectionAudioSettingsView.swift",
         "Sources/RemoteMic/ButtonMappingSettingsView.swift",
@@ -85,11 +86,35 @@ struct RepositoryContractTests {
     #expect(delegate.contains("[.leftMouseUp, .rightMouseUp]"))
     #expect(delegate.contains("width: 820, height: 620"))
     #expect(delegate.contains("width: 760, height: 540"))
+    #expect(delegate.contains("panel.setContentSize(NSSize(width: 820, height: 620))"))
+    #expect(delegate.contains("styleMask: [.borderless, .nonactivatingPanel, .resizable]"))
+    #expect(delegate.contains("KeyableSettingsPanel("))
+    #expect(settings.contains("xmark.circle.fill"))
+    #expect(settings.contains("settings.window.title"))
     #expect(delegate.contains("NSPopover()"))
     #expect(statusPanel.contains(".background(.regularMaterial)"))
     #expect(statusPanel.contains("SayAllDesign.statusPanelWidth"))
     #expect(statusPanel.contains("SayAllDesign.statusPanelHeight"))
     #expect(settings.components(separatedBy: ".contentShape(Rectangle())").count >= 12)
+  }
+
+  @Test func statusPanelRowsStayLeadingAlignedAndCompact() throws {
+    let section = try contents("Sources/RemoteMic/SettingsSection.swift")
+    let quickMapping = try contents("Sources/RemoteMic/QuickMappingMenu.swift")
+    let quickMappingPresenter = try contents(
+      "Sources/RemoteMic/QuickMappingMenuPresenter.swift"
+    )
+
+    #expect(section.contains("VStack(alignment: .leading, spacing: 0)"))
+    #expect(section.contains(".frame(maxWidth: .infinity, alignment: .leading)"))
+    #expect(
+      quickMapping.contains(".frame(width: SayAllDesign.statusPanelWidth, alignment: .leading)")
+    )
+    #expect(quickMapping.contains(".overlay"))
+    #expect(quickMappingPresenter.contains("override func mouseUp(with event: NSEvent)"))
+    #expect(quickMappingPresenter.contains("override func accessibilityPerformPress() -> Bool"))
+    #expect(quickMappingPresenter.contains("setAccessibilityRole(.menuButton)"))
+    #expect(SayAllDesign.statusPanelHeight == 560)
   }
 
   @Test func englishAndChineseLocalizationKeysMatch() throws {

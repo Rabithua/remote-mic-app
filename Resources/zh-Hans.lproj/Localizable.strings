@@ -94,6 +94,7 @@
 "button_mapping.status.system_managed" = "按键由 macOS 原生处理";
 "button_mapping.status.waiting_for_device" = "正在等待遥控器按键连接";
 "button_mapping.toggle.enabled" = "启用自定义按键功能";
+"common.action.close" = "关闭";
 "common.action.quit" = "退出";
 "common.action.restore_defaults" = "恢复默认";
 "common.status.connected" = "已连接";
@@ -200,6 +201,7 @@
 "settings.section.buttons" = "按键";
 "settings.section.connection_audio" = "连接与音频";
 "settings.section.permissions" = "权限";
+"settings.window.title" = "设置";
 "setup.action.done" = "完成";
 "status_panel.hid" = "HID 按键";
 "status_panel.needs_attention" = "需要处理";

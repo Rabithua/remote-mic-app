@@ -48,7 +48,6 @@ struct StatusPanelView: View {
           actionSection
           preferenceSection
         }
-        .padding(.vertical, 10)
       }
 
       Divider()

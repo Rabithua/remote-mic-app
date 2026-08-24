@@ -94,6 +94,7 @@
 "button_mapping.status.system_managed" = "Buttons are handled natively by macOS";
 "button_mapping.status.waiting_for_device" = "Waiting for the remote buttons to connect";
 "button_mapping.toggle.enabled" = "Enable Custom Button Controls";
+"common.action.close" = "Close";
 "common.action.quit" = "Quit";
 "common.action.restore_defaults" = "Restore Defaults";
 "common.status.connected" = "Connected";
@@ -200,6 +201,7 @@
 "settings.section.buttons" = "Buttons";
 "settings.section.connection_audio" = "Connection & Audio";
 "settings.section.permissions" = "Permissions";
+"settings.window.title" = "Settings";
 "setup.action.done" = "Done";
 "status_panel.hid" = "HID buttons";
 "status_panel.needs_attention" = "Needs attention";
