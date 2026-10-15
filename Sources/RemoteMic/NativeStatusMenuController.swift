@@ -104,6 +104,16 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
 
     menu.addItem(.separator())
 
+    if !state.isConnected {
+      menu.addItem(
+        actionItem(
+          localization.text("device_setup.remote.pair"),
+          symbol: "plus.circle",
+          action: #selector(openPairing(_:))
+        )
+      )
+    }
+
     menu.addItem(
       identified(
         actionItem(
@@ -404,6 +414,11 @@ final class NativeStatusMenuController: NSObject, NSMenuDelegate {
     model.reconnect()
     model.refreshAudioDevices()
     model.refreshHIDAfterPermissionChange()
+  }
+
+  @objc private func openPairing(_ sender: NSMenuItem) {
+    onOpenSettings(.connection)
+    model.openBluetoothPairing()
   }
 
   @objc private func toggleQuickMapping(_ sender: NSMenuItem) {

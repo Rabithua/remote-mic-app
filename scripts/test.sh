@@ -10,7 +10,7 @@ if [[ "$#" -ne 0 ]]; then
 fi
 
 plutil -lint Resources/Info.plist Resources/*.lproj/*.strings >/dev/null
-for script in scripts/*.sh(N); do
+for script in scripts/*.sh(N) Resources/AudioDriver/*.sh(N); do
   zsh -n "$script"
 done
 xcrun swift format lint --strict --recursive --parallel Sources Tests Package.swift

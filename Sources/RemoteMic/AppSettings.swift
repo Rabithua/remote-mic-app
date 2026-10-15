@@ -47,8 +47,13 @@ final class AppSettings {
   }
 
   var selectedAudioDeviceUID: String {
-    didSet { defaults.set(selectedAudioDeviceUID, forKey: Keys.selectedAudioDeviceUID) }
+    didSet {
+      hasConfiguredAudioDevice = true
+      defaults.set(selectedAudioDeviceUID, forKey: Keys.selectedAudioDeviceUID)
+    }
   }
+
+  private(set) var hasConfiguredAudioDevice: Bool
 
   var customMappingEnabled: Bool {
     didSet { defaults.set(customMappingEnabled, forKey: Keys.customMappingEnabled) }
@@ -130,6 +135,7 @@ final class AppSettings {
       ? 10
       : defaults.double(forKey: Keys.gainDB)
     selectedAudioDeviceUID = defaults.string(forKey: Keys.selectedAudioDeviceUID) ?? ""
+    hasConfiguredAudioDevice = defaults.object(forKey: Keys.selectedAudioDeviceUID) != nil
     if defaults.object(forKey: Keys.customMappingEnabled) != nil {
       customMappingEnabled = defaults.bool(forKey: Keys.customMappingEnabled)
     } else if defaults.object(forKey: Keys.legacyExclusiveHID) != nil {
@@ -215,6 +221,15 @@ final class AppSettings {
 
   func markSetupPresented() {
     setupHasPresented = true
+  }
+
+  @discardableResult
+  func selectInitialAudioDeviceIfNeeded(from devices: [AudioDeviceInfo]) -> Bool {
+    guard !hasConfiguredAudioDevice,
+      let device = DoubaoAudioDevicePolicy.device(in: devices)
+    else { return false }
+    selectedAudioDeviceUID = device.uid
+    return true
   }
 
   func completeSetup() {

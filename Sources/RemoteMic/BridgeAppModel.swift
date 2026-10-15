@@ -16,6 +16,7 @@ enum BluetoothVoiceStopPolicy {
 final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
   let settings: AppSettings
   let state: AppRuntimeState
+  let audioDriver = AudioDriverManager()
 
   private let audioOutput = VirtualAudioOutput()
   private let voiceFunctionMapper = RemoteVoiceFunctionMapper()
@@ -91,6 +92,7 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
   func startIfNeeded() {
     guard !started else { return }
     started = true
+    refreshPermissionSnapshot()
     refreshAudioDevices()
     applyAudioSettings(reason: "startup")
     startBluetoothConnections()
@@ -144,6 +146,7 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
 
   func reconnect() {
     guard started else { return }
+    state.lastConnectionIssue = nil
     if bluetoothBridges.isEmpty, discoveryBluetoothBridge == nil {
       startBluetoothConnections()
       return
@@ -154,8 +157,10 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
       for bridge in bluetoothBridges.values {
         bridge.reconnectNow()
       }
-      discoveryBluetoothBridge?.reconnectNow()
     }
+    // A remembered peripheral UUID is local to its Mac. Always refresh discovery too,
+    // including when a saved profile is selected after settings were migrated.
+    refreshRemoteDiscovery()
     AppLogger.shared.write("BLE RECONNECT requested")
   }
 
@@ -171,6 +176,9 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
   func refreshAudioDevices() {
     let devices = CoreAudioDeviceCatalog.outputDevices()
     state.audioDevices = devices
+    if settings.selectInitialAudioDeviceIfNeeded(from: devices) {
+      applyAudioSettings(reason: "first_setup")
+    }
     state.doubaoAudioStatus = DoubaoAudioDevicePolicy.status(in: devices)
     AppLogger.shared.write(
       "AUDIO DEVICES refreshed outputs={\(CoreAudioDeviceCatalog.outputDevicesDiagnostic(devices))}"
@@ -232,11 +240,12 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
   }
 
   var canSendTestTone: Bool {
-    TestToneGate.canPlay(
-      hasSelectedDevice: selectedAudioDeviceIsAvailable,
-      isStreaming: state.isStreaming,
-      isPlaying: state.isPlayingTestTone
-    )
+    !audioDriver.isInstalling
+      && TestToneGate.canPlay(
+        hasSelectedDevice: selectedAudioDeviceIsAvailable,
+        isStreaming: state.isStreaming,
+        isPlaying: state.isPlayingTestTone
+      )
   }
 
   func sendTestTone() {
@@ -330,7 +339,71 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
 
   func requestBluetoothPermission() {
     reconnect()
-    openPrivacyPane("Privacy_Bluetooth")
+    if CBManager.authorization == .denied || CBManager.authorization == .restricted {
+      openPrivacyPane("Privacy_Bluetooth")
+    }
+  }
+
+  func openBluetoothPairing() {
+    refreshRemoteDiscovery()
+    if let url = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings") {
+      NSWorkspace.shared.open(url)
+    }
+  }
+
+  func refreshPermissionSnapshot() {
+    state.bluetoothPermissionGranted = bluetoothPermissionGranted
+    let permissions = HIDPermissionSnapshot.current
+    state.inputMonitoringGranted = permissions.inputMonitoringGranted
+    state.accessibilityGranted = permissions.accessibilityGranted
+  }
+
+  func refreshDeviceSetup() async {
+    let hadBluetoothAccess = state.bluetoothPermissionGranted
+    refreshPermissionSnapshot()
+    refreshHIDAfterPermissionChange()
+    refreshAudioDevices()
+    if !state.isConnected, !hadBluetoothAccess, state.bluetoothPermissionGranted {
+      reconnect()
+    }
+    await audioDriver.refresh()
+  }
+
+  func installVirtualMicrophone() async {
+    guard !state.isStreaming, !state.isPlayingTestTone else { return }
+    guard await audioDriver.install() else { return }
+    // Core Audio takes a moment to enumerate a newly installed HAL plug-in.
+    for _ in 0..<20 {
+      refreshAudioDevices()
+      if hasDoubaoAudioDevice {
+        if !settings.hasConfiguredAudioDevice
+          || settings.selectedAudioDeviceUID == DoubaoAudioDevicePolicy.deviceUID
+        {
+          selectDoubaoAudioDevice()
+        }
+        return
+      }
+      do { try await Task.sleep(for: .milliseconds(500)) } catch { return }
+    }
+  }
+
+  func copyConnectionDiagnostics(using localization: LocalizationStore) async {
+    refreshPermissionSnapshot()
+    let recentLog = await AppLogger.shared.recentLog()
+    let report = """
+      SayAll \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development")
+      macOS: \(ProcessInfo.processInfo.operatingSystemVersionString)
+      Bluetooth permission: \(state.bluetoothPermissionGranted)
+      Input monitoring: \(state.inputMonitoringGranted)
+      Accessibility: \(state.accessibilityGranted)
+      Connection: \(state.connectionStatus.text(using: localization))
+      Last connection issue: \(state.lastConnectionIssue?.text(using: localization) ?? "none")
+      Driver: \(audioDriver.status)
+      Audio: \(state.audioStatus.text(using: localization))
+      \(recentLog)
+      """
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(report, forType: .string)
   }
 
   var bluetoothPermissionGranted: Bool {
@@ -671,6 +744,7 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
   }
 
   private func refreshBluetoothPresentation() {
+    refreshPermissionSnapshot()
     let allStates = bluetoothBridgeStates.values
     state.connectedRemoteProfileIDs = Set(
       bluetoothBridges.compactMap { identifier, bridge in
@@ -682,12 +756,13 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
       })
     state.isConnected = allStates.contains { if case .ready = $0 { true } else { false } }
     if let selectedBluetoothBridge,
-      let bridgeState = bluetoothBridgeStates[ObjectIdentifier(selectedBluetoothBridge)]
+      let bridgeState = bluetoothBridgeStates[ObjectIdentifier(selectedBluetoothBridge)],
+      case .ready = bridgeState
     {
       state.connectionStatus = bridgeState.message
     } else if let ready = allStates.first(where: { if case .ready = $0 { true } else { false } }) {
       state.connectionStatus = ready.message
-    } else if let bridgeState = allStates.first {
+    } else if let bridgeState = BluetoothPresentationPolicy.mostRelevant(Array(allStates)) {
       state.connectionStatus = bridgeState.message
     } else {
       state.connectionStatus = LocalizedMessage("connection.status.searching")
@@ -699,7 +774,11 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
     didChange bridgeState: BluetoothBridgeState
   ) {
     bluetoothBridgeStates[ObjectIdentifier(bridge)] = bridgeState
+    if case .failed(let message) = bridgeState {
+      state.lastConnectionIssue = message
+    }
     if case .ready = bridgeState {
+      state.lastConnectionIssue = nil
       _ = registerBluetoothBridgeIfNeeded(bridge)
       voiceFnTapSession.resume()
       applyHIDSettings()
@@ -723,6 +802,10 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
 
   func bluetoothBridgeDidStartVoice(_ bridge: XiaomiBluetoothBridge) {
     guard let identifier = bridge.deviceIdentifier else { return }
+    guard !audioDriver.isInstalling else {
+      _ = bridge.requestMicrophoneClose()
+      return
+    }
     let profileID = activateRemoteProfile(for: bridge)
     if let activeBluetoothVoiceDeviceIdentifier,
       activeBluetoothVoiceDeviceIdentifier != identifier
