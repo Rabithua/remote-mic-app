@@ -38,4 +38,8 @@ for localization in en.lproj zh-Hans.lproj; do
   plutil -lint "$APP/Contents/Resources/$localization/InfoPlist.strings" >/dev/null
   plutil -lint "$APP/Contents/Resources/$localization/Localizable.strings" >/dev/null
 done
+"$ROOT/scripts/verify-driver.sh" "$APP/Contents/Resources/AudioDriver/MiRemoteV2ch.driver"
+zsh -n "$APP/Contents/Resources/AudioDriver/install.sh"
+zsh "$APP/Contents/Resources/AudioDriver/install.sh" \
+  --verify-bundle "$APP/Contents/Resources/AudioDriver/MiRemoteV2ch.driver"
 print "APP VERIFY PASS: $APP"

@@ -88,7 +88,8 @@ struct RepositoryContractTests {
     #expect(!settings.contains("setup.action.done"))
     #expect(delegate.contains("item.menu = controller.menu"))
     #expect(!delegate.contains("NSPopover"))
-    #expect(settings.components(separatedBy: ".contentShape(Rectangle())").count >= 12)
+    // Native controls own their sizing and hit targets; only custom surfaces need contentShape.
+    #expect(settings.contains(".contentShape(Rectangle())"))
   }
 
   @Test func statusItemUsesANativeMenuAndSystemSubmenus() throws {

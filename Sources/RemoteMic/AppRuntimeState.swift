@@ -76,6 +76,10 @@ final class AppRuntimeState {
   var voiceShortcutStatus = LocalizedMessage("voice_button.status.preparing")
   var isStreaming = false
   var isConnected = false
+  var bluetoothPermissionGranted = false
+  var inputMonitoringGranted = false
+  var accessibilityGranted = false
+  var lastConnectionIssue: LocalizedMessage?
   var isVoiceTriggerEnabled = false
   var activeRemoteButtons = Set<RemoteButton>()
   var lastRemoteButtonPress: RemoteButton?

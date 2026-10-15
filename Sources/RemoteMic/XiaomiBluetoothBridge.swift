@@ -413,7 +413,7 @@ final class XiaomiBluetoothBridge: NSObject {
         self.lifecycle == .connecting(generation)
       else { return }
       AppLogger.shared.write("BLE CONNECT TIMEOUT")
-      self.state = .reconnecting
+      self.state = .failed(LocalizedMessage("device_setup.remote.timeout"))
       if let central = self.central,
         let peripheral = self.peripheral,
         peripheral.state != .disconnected
@@ -779,6 +779,7 @@ extension XiaomiBluetoothBridge: @preconcurrency CBCentralManagerDelegate {
       lifecycle.acceptsDidFailToConnect(generation: generation)
     else { return }
     AppLogger.shared.write("BLE CONNECT FAILED error=\(error?.localizedDescription ?? "unknown")")
+    state = .failed(LocalizedMessage("device_setup.remote.connection_failed"))
     let delay = shouldRun ? (requestedReconnectDelay ?? 3) : nil
     finishAttempt(reconnectAfter: delay)
     if !shouldRun { state = .stopped }

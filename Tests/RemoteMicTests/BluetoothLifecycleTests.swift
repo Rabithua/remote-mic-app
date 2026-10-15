@@ -5,6 +5,16 @@ import Testing
 
 @Suite("Bluetooth lifecycle")
 struct BluetoothLifecycleTests {
+  @Test func anIdleDiscoveryBridgeNeverHidesAConnectingOrReadyRemote() {
+    #expect(BluetoothPresentationPolicy.mostRelevant([.scanning, .connecting]) == .connecting)
+    #expect(BluetoothPresentationPolicy.mostRelevant([.connecting, .scanning]) == .connecting)
+    #expect(
+      BluetoothPresentationPolicy.mostRelevant([.reconnecting, .ready("MI RC"), .scanning])
+        == .ready("MI RC"))
+    #expect(BluetoothPresentationPolicy.mostRelevant([.scanning, .discovering]) == .discovering)
+    #expect(BluetoothPresentationPolicy.mostRelevant([]) == nil)
+  }
+
   @Test func generationAndPhaseRejectStaleCallbacks() {
     let phase = BluetoothLifecyclePhase.connecting(1)
     #expect(phase.acceptsDidConnect(generation: 1))

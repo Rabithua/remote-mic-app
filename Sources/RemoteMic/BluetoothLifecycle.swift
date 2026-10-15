@@ -1,5 +1,24 @@
 import Foundation
 
+enum BluetoothPresentationPolicy {
+  static func mostRelevant(_ states: [BluetoothBridgeState]) -> BluetoothBridgeState? {
+    states.max { priority($0) < priority($1) }
+  }
+
+  private static func priority(_ state: BluetoothBridgeState) -> Int {
+    switch state {
+    case .ready: return 8
+    case .discovering: return 7
+    case .connecting: return 6
+    case .bluetoothUnavailable: return 5
+    case .failed: return 4
+    case .reconnecting: return 3
+    case .scanning: return 2
+    case .stopped: return 1
+    }
+  }
+}
+
 enum XiaomiVoiceRemoteNameMatcher {
   private static let approvedNames: Set<String> = [
     "mi rc",

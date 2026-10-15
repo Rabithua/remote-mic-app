@@ -169,13 +169,8 @@ validate_destinations
 "$ROOT/scripts/verify-app.sh" "$BUILT_APP"
 
 driver_needs_install=0
-if [[ ! -d "$DRIVER_DESTINATION" ]]; then
+if [[ ! -d "$DRIVER_DESTINATION" ]] || ! "$ROOT/scripts/verify-driver.sh" "$DRIVER_DESTINATION"; then
   driver_needs_install=1
-elif ! "$ROOT/scripts/verify-driver.sh" "$DRIVER_DESTINATION"; then
-  driver_needs_install=1
-fi
-if [[ "$driver_needs_install" == "1" ]]; then
-  "$ROOT/scripts/build-driver.sh"
   "$ROOT/scripts/verify-driver.sh" "$BUILT_DRIVER"
 fi
 

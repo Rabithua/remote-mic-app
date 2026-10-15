@@ -63,6 +63,16 @@ for document in LICENSE.md COPYRIGHT.md THIRD_PARTY_NOTICES.md README.md README.
     "$ROOT/$document" "$APP/Contents/Resources/$document"
 done
 
+# A copied app must be able to set up a new Mac without a compiler or a checkout.
+if ! "$ROOT/scripts/verify-driver.sh" "$ROOT/dist/MiRemoteV2ch.driver" >/dev/null 2>&1; then
+  "$ROOT/scripts/build-driver.sh"
+fi
+mkdir -p "$APP/Contents/Resources/AudioDriver"
+ditto --norsrc --noextattr --noqtn --noacl \
+  "$ROOT/dist/MiRemoteV2ch.driver" "$APP/Contents/Resources/AudioDriver/MiRemoteV2ch.driver"
+ditto --norsrc --noextattr --noqtn --noacl \
+  "$ROOT/Resources/AudioDriver/install.sh" "$APP/Contents/Resources/AudioDriver/install.sh"
+
 codesign \
   --force \
   --deep \

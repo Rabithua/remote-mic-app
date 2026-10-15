@@ -16,10 +16,14 @@ This is a trimmed personal fork of [HD838A/remote-mic-app](https://github.com/HD
 
 - Apple Silicon Mac
 - macOS 14 or later
-- Xcode command-line tools; a full Xcode installation and network access are needed to build the compatibility driver
+- The complete app requires no Xcode or Terminal; building from source requires full Xcode and network access
 - A compatible Xiaomi Bluetooth voice remote, primarily tested with RC001 and RC003
 
 ## Install
+
+Copy the complete `SayAll.app` into Applications and open it. Under Connection & Audio → Set up this Mac, allow Bluetooth, pair the remote, and install the bundled `MiRemoteV 2ch` audio component. Install / Repair uses the standard macOS administrator prompt; no driver download or Terminal command is needed. Healthy drivers are preserved; repairs back up the old driver without overwriting a component with a different identity.
+
+For developers building and installing from source:
 
 ```zsh
 ./scripts/install-local.sh
@@ -38,13 +42,15 @@ To build or run without installing:
 
 ## Use
 
-1. Pair the remote in System Settings and start SayAll.
-2. On the one-time compact setup screen, grant Bluetooth access. Grant Input Monitoring and Accessibility if button remapping is needed.
-3. Select `MiRemoteV 2ch` or another loopback device under Connection & Audio.
+1. Launch SayAll and allow Bluetooth under Set up this Mac.
+2. Click Pair Remote… and connect `MI RC` or the Xiaomi remote in system Bluetooth settings. For 2 Pro, hold Home and Menu together to pair; check the manual for other models. Disconnect the old Mac before switching computers.
+3. Click Install / Repair for the virtual microphone. First setup selects `MiRemoteV 2ch` automatically; existing audio preferences, including a disabled output, are preserved. Other loopback devices remain available. Input Monitoring and Accessibility permissions for button mapping are accessible from the same page.
 4. Select the same microphone in the dictation app. Hold the remote voice button to speak and release it to stop.
 5. Switch mappings from the status menu or open Settings for click, double-click, long-press, and multi-remote configuration.
 
 The app does not change the system's default input or output device, store voice audio, or upload it. Missing permissions, a disconnected remote, or an invalid audio device produce status-menu warnings instead of repeatedly opening Settings.
+
+Pairing, permissions, and drivers must be configured on each Mac. If the remote is absent from system Bluetooth, check pairing mode. If the system is connected but SayAll is not ready, click Search Again. Copy Connection Diagnostics puts permission, connection, audio, and recent log details on the local clipboard, without Terminal commands or automatic uploads.
 
 ## Development and testing
 

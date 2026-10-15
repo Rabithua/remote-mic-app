@@ -101,7 +101,8 @@ final class RemoteMicAppDelegate: NSObject, NSApplicationDelegate {
       panel.hasShadow = false
       panel.hidesOnDeactivate = false
       panel.isMovableByWindowBackground = true
-      panel.level = .floating
+      // Allow system pairing and permission windows to come in front of settings.
+      panel.level = .normal
       panel.isReleasedWhenClosed = false
       panel.center()
       settingsWindow = panel

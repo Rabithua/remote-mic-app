@@ -15,6 +15,8 @@ struct ConnectionAudioSettingsView: View {
           subtitle: localization.text("connection.page.subtitle.compact")
         )
 
+        DeviceSetupSection(state: state, model: model)
+
         SettingsSection(localization.text("connection.remote.section_title")) {
           RuntimeStatusRow(
             icon: "antenna.radiowaves.left.and.right",
@@ -43,9 +45,6 @@ struct ConnectionAudioSettingsView: View {
                 localization.text("connection.action.reconnect"),
                 systemImage: "arrow.clockwise"
               )
-              .padding(.horizontal, 8)
-              .frame(minHeight: 28)
-              .contentShape(Rectangle())
             }
             .controlSize(.small)
           }
@@ -113,9 +112,6 @@ struct ConnectionAudioSettingsView: View {
                 localization.text("audio.action.refresh_devices"),
                 systemImage: "arrow.clockwise"
               )
-              .padding(.horizontal, 8)
-              .frame(minHeight: 28)
-              .contentShape(Rectangle())
             }
             .controlSize(.small)
 
@@ -126,9 +122,6 @@ struct ConnectionAudioSettingsView: View {
                 localization.text("audio.action.send_test_tone"),
                 systemImage: "speaker.wave.2"
               )
-              .padding(.horizontal, 8)
-              .frame(minHeight: 28)
-              .contentShape(Rectangle())
             }
             .controlSize(.small)
             .disabled(!model.canSendTestTone)

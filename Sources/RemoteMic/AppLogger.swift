@@ -34,4 +34,24 @@ final class AppLogger {
       }
     }
   }
+
+  func recentLog() async -> String {
+    await withCheckedContinuation { continuation in
+      queue.async { [logURL] in
+        guard let handle = try? FileHandle(forReadingFrom: logURL) else {
+          continuation.resume(returning: "")
+          return
+        }
+        defer { try? handle.close() }
+        do {
+          let end = try handle.seekToEnd()
+          try handle.seek(toOffset: end > 24_576 ? end - 24_576 : 0)
+          let data = try handle.readToEnd() ?? Data()
+          continuation.resume(returning: String(decoding: data, as: UTF8.self))
+        } catch {
+          continuation.resume(returning: "")
+        }
+      }
+    }
+  }
 }

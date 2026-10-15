@@ -31,7 +31,7 @@ jobs:
       - name: Check patch and script syntax
         run: |
           git diff --check
-          for script in scripts/*.sh; do zsh -n "$script"; done
+          for script in scripts/*.sh Resources/AudioDriver/*.sh; do zsh -n "$script"; done
 
       - name: Check Swift formatting
         run: xcrun swift format lint --strict --recursive --parallel Sources Tests Package.swift
