@@ -5,6 +5,7 @@ import Testing
 @testable import RemoteMic
 
 @Suite("Shortcut capture monitor")
+@MainActor
 struct ShortcutCaptureMonitorTests {
   @Test func capturesAndSuppressesAReservedCommandShortcutOnce() throws {
     var captured: [CustomKeyboardShortcut] = []

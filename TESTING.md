@@ -8,12 +8,15 @@
 2. 确认安装路径为 `/Applications/SayAll.app`，没有 Dock 图标，状态栏图标常驻。
 3. 已有健康 `MiRemoteV 2ch` 时确认驱动未被替换；不兼容驱动场景确认产生带时间戳的备份。
 4. 退出并再次启动，确认映射、音频设备、增益、语言和遥控器 profile 未丢失。
+5. 已完成首次设置时冷启动不应出现窗口；从状态栏或再次打开 App 只显示同一个有内容的设置面板。反复使用 `⌘,` 打开、`⌘W` 关闭，不能出现空白系统 Settings 窗口；文本输入的复制、粘贴和全选仍应正常。
 
 Pass: app and driver identifiers remain unchanged, the app launches, and existing settings survive. Fail on any unexpected overwrite, missing rollback, Dock icon, or setting loss.
 
 ## 权限 / Permissions
 
 在没有 Xcode、未安装虚拟麦克风的新 Mac 上，仅复制完整 App：在“在这台 Mac 上设置”里授权蓝牙，点击配对入口连接 `MI RC`，再从 App 安装音频组件。验证管理员取消后可重试、安装后设备载入并自动选中、正常驱动不重装、错误身份或符号链接目标被拒绝。打开系统设置时，配对和授权窗口不能被 SayAll 设置窗口盖住。
+
+点击“配对遥控器…”后确认 App 暂停 BLE 连接和 HID 监听；切回 App、刷新权限或睡眠唤醒都不能抢先恢复。系统配对成功或取消后，点击“继续连接”恢复；无法打开系统设置时应显示错误并恢复连接。日志包含暂停记录以及实际蓝牙错误域和错误码，不应把 App 的超时取消误报为系统认证错误。
 
 迁移已有设置后验证“重新查找”会同时刷新记住的遥控器和新设备发现；连接失败原因保留在页面，后台扫描不覆盖正在连接/已就绪状态。“复制连接诊断”只写入本机剪贴板，并包含最近的 BLE 日志。Mac Mini 实际配对和首次安装须单独记录，不能用自动化通过代替。
 

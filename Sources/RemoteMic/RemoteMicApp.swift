@@ -1,12 +1,14 @@
-import SwiftUI
+import AppKit
 
 @main
-struct RemoteMicApp: App {
-  @NSApplicationDelegateAdaptor(RemoteMicAppDelegate.self) private var appDelegate
-
-  var body: some Scene {
-    Settings {
-      EmptyView()
+enum RemoteMicApp {
+  @MainActor
+  static func main() {
+    let application = NSApplication.shared
+    let appDelegate = RemoteMicAppDelegate()
+    application.delegate = appDelegate
+    withExtendedLifetime(appDelegate) {
+      application.run()
     }
   }
 }

@@ -43,7 +43,7 @@ To build or run without installing:
 ## Use
 
 1. Launch SayAll and allow Bluetooth under Set up this Mac.
-2. Click Pair Remote… and connect `MI RC` or the Xiaomi remote in system Bluetooth settings. For 2 Pro, hold Home and Menu together to pair; check the manual for other models. Disconnect the old Mac before switching computers.
+2. Click Pair Remote… and connect `MI RC` or the Xiaomi remote in system Bluetooth settings. SayAll pauses automatic connections until you return and click Continue Connecting. For 2 Pro, hold Home and Menu together to pair; check the manual for other models. Disconnect the old Mac before switching computers.
 3. Click Install / Repair for the virtual microphone. First setup selects `MiRemoteV 2ch` automatically; existing audio preferences, including a disabled output, are preserved. Other loopback devices remain available. Input Monitoring and Accessibility permissions for button mapping are accessible from the same page.
 4. Select the same microphone in the dictation app. Hold the remote voice button to speak and release it to stop.
 5. Switch mappings from the status menu or open Settings for click, double-click, long-press, and multi-remote configuration.
