@@ -1,4 +1,3 @@
-import CoreGraphics
 import Foundation
 import Testing
 
@@ -6,63 +5,108 @@ import Testing
 
 @MainActor
 struct AppSwitcherSessionTests {
-  @Test func holdsCommandThroughNavigationAndReleasesOnlyOnConfirmation() {
+  @Test func navigationChangesTheSelectedApplicationAndOKActivatesOnlyThatTarget() {
     let fixture = SwitcherFixture()
     let owner = UUID()
     #expect(fixture.session.begin(owner: owner))
-    #expect(fixture.events == [.commandDown, .down(48), .up(48)])
+    #expect(fixture.session.applications == fixture.availableApplications)
+    #expect(fixture.session.selectedIndex == 1)
+    #expect(fixture.session.selectedApplication?.processIdentifier == 22)
+    #expect(fixture.presenter.events == [.show([11, 22, 33], 1)])
     #expect(fixture.session.isOwned(by: owner))
+
     #expect(fixture.session.handlePress(.tv, owner: owner))
     #expect(fixture.session.handlePress(.right, owner: owner))
+    #expect(fixture.session.selectedApplication?.processIdentifier == 33)
     #expect(fixture.session.handlePress(.left, owner: owner))
-    #expect(fixture.session.handlePress(.right, owner: owner))
-    #expect(fixture.session.isActive)
-    #expect(
-      fixture.events.suffix(6) == [
-        .down(48), .up(48),
-        .down(48, flags: [.maskCommand, .maskShift]),
-        .up(48, flags: [.maskCommand, .maskShift]),
-        .down(48), .up(48),
-      ])
+    #expect(fixture.session.selectedApplication?.processIdentifier == 22)
+    #expect(fixture.presenter.events.suffix(2) == [.select(2), .select(1)])
+    #expect(fixture.activatedApplications.isEmpty)
 
     #expect(fixture.session.handlePress(.ok, owner: owner))
     #expect(fixture.session.isActive == false)
-    #expect(fixture.events.last == .commandUp)
-    #expect(fixture.events.contains(.down(53)) == false)
-    let count = fixture.events.count
+    #expect(fixture.activatedApplications == [fixture.availableApplications[1]])
+    #expect(fixture.presenter.events.suffix(2) == [.dismiss, .activate(22)])
+    let count = fixture.presenter.events.count
     fixture.session.cancel()
-    #expect(fixture.events.count == count)
+    #expect(fixture.presenter.events.count == count)
   }
 
-  @Test func backCancelsBeforeReleasingCommand() {
+  @Test func navigationWrapsInBothDirections() {
     let fixture = SwitcherFixture()
     let owner = UUID()
     #expect(fixture.session.begin(owner: owner))
+    #expect(fixture.session.handlePress(.right, owner: owner))
+    #expect(fixture.session.selectedIndex == 2)
+    #expect(fixture.session.handlePress(.right, owner: owner))
+    #expect(fixture.session.selectedIndex == 0)
+    #expect(fixture.session.selectedApplication?.processIdentifier == 11)
+    #expect(fixture.session.handlePress(.left, owner: owner))
+    #expect(fixture.session.selectedIndex == 2)
+    #expect(fixture.session.selectedApplication?.processIdentifier == 33)
+    #expect(fixture.presenter.events.suffix(3) == [.select(2), .select(0), .select(2)])
+    #expect(fixture.activatedApplications.isEmpty)
+    fixture.session.cancel()
+  }
+
+  @Test func noRunningApplicationsDoesNotPresentAnEmptyPanel() {
+    let fixture = SwitcherFixture()
+    fixture.availableApplications = []
+
+    #expect(fixture.session.begin(owner: UUID()) == false)
+    #expect(fixture.session.isActive == false)
+    #expect(fixture.session.selectedApplication == nil)
+    #expect(fixture.presenter.events.isEmpty)
+    #expect(fixture.activatedApplications.isEmpty)
+  }
+
+  @Test func oneApplicationRemainsSelectedInBothDirections() {
+    let fixture = SwitcherFixture()
+    fixture.availableApplications = [fixture.availableApplications[0]]
+    let owner = UUID()
+    #expect(fixture.session.begin(owner: owner))
+    #expect(fixture.session.selectedIndex == 0)
+    #expect(fixture.session.handlePress(.left, owner: owner))
+    #expect(fixture.session.selectedIndex == 0)
+    #expect(fixture.session.handlePress(.right, owner: owner))
+    #expect(fixture.session.selectedApplication?.processIdentifier == 11)
+    #expect(fixture.session.handlePress(.ok, owner: owner))
+    #expect(fixture.activatedApplications == fixture.availableApplications)
+  }
+
+  @Test func backDismissesWithoutActivatingAnyApplication() {
+    let fixture = SwitcherFixture()
+    let owner = UUID()
+    #expect(fixture.session.begin(owner: owner))
+    #expect(fixture.session.handlePress(.right, owner: owner))
     #expect(fixture.session.handlePress(.back, owner: owner))
-    #expect(fixture.events.suffix(3) == [.down(53), .up(53), .commandUp])
+    #expect(fixture.presenter.events.last == .dismiss)
+    #expect(fixture.activatedApplications.isEmpty)
     #expect(fixture.session.isActive == false)
   }
 
-  @Test func unrelatedInputAndAnotherRemoteCannotInheritHeldCommand() {
+  @Test func unrelatedInputAndAnotherRemoteCancelBeforeNormalHandling() {
     let fixture = SwitcherFixture()
     let owner = UUID()
     #expect(fixture.session.handlePress(.left, owner: owner) == false)
-    #expect(fixture.events.isEmpty)
+    #expect(fixture.presenter.events.isEmpty)
     #expect(fixture.session.begin(owner: owner))
     fixture.session.cancel(owner: UUID())
     #expect(fixture.session.isActive)
 
     #expect(fixture.session.handlePress(.ok, owner: UUID()) == false)
-    #expect(fixture.events.suffix(3) == [.down(53), .up(53), .commandUp])
+    #expect(fixture.presenter.events.last == .dismiss)
     #expect(fixture.session.isActive == false)
+    #expect(fixture.activatedApplications.isEmpty)
 
     #expect(fixture.session.begin(owner: owner))
     #expect(fixture.session.handlePress(.volumeUp, owner: owner) == false)
-    #expect(fixture.events.last == .commandUp)
+    #expect(fixture.presenter.events.last == .dismiss)
     #expect(fixture.session.isActive == false)
+    #expect(fixture.activatedApplications.isEmpty)
   }
 
-  @Test func onlyTheCurrentIdleTimerCanCancelTheSession() throws {
+  @Test func onlyTheCurrentIdleTimerCanDismissTheSession() throws {
     let fixture = SwitcherFixture()
     let owner = UUID()
     #expect(fixture.session.begin(owner: owner))
@@ -75,55 +119,50 @@ struct AppSwitcherSessionTests {
     let currentTimer = try #require(fixture.scheduler.tasks.last)
     currentTimer.action()
     #expect(fixture.session.isActive == false)
-    #expect(fixture.events.suffix(3) == [.down(53), .up(53), .commandUp])
-    let count = fixture.events.count
+    #expect(fixture.presenter.events.last == .dismiss)
+    #expect(fixture.activatedApplications.isEmpty)
+    let count = fixture.presenter.events.count
     currentTimer.action()
-    #expect(fixture.events.count == count)
+    #expect(fixture.presenter.events.count == count)
   }
 
-  @Test func missingOrRevokedPermissionFailsClosedButStillAttemptsCleanup() {
+  @Test func missingOrRevokedPermissionDoesNotActivateAnApplication() {
     let fixture = SwitcherFixture()
     let owner = UUID()
     fixture.trusted = false
     #expect(fixture.session.begin(owner: owner) == false)
-    #expect(fixture.events.isEmpty)
+    #expect(fixture.presenter.events.isEmpty)
     fixture.trusted = true
     #expect(fixture.session.begin(owner: owner))
     fixture.trusted = false
     #expect(fixture.session.handlePress(.left, owner: owner))
     #expect(fixture.session.isActive == false)
-    #expect(fixture.events.suffix(3) == [.down(53), .up(53), .commandUp])
+    #expect(fixture.presenter.events.last == .dismiss)
+    #expect(fixture.activatedApplications.isEmpty)
   }
 
-  @Test(arguments: SwitcherFailureStage.allCases)
-  func injectionFailureAlwaysReleasesTheModifier(stage: SwitcherFailureStage) {
+  @Test func activationFailureStillClosesThePanelAndCannotBeSubmittedTwice() {
     let fixture = SwitcherFixture()
+    fixture.activationSucceeds = false
     let owner = UUID()
-    if stage != .navigationTab {
-      fixture.failedDownKey = stage == .command ? 55 : 48
-    }
-    let opened = fixture.session.begin(owner: owner)
-    if stage == .navigationTab {
-      #expect(opened)
-      fixture.failedDownKey = 48
-      #expect(fixture.session.handlePress(.right, owner: owner))
-    } else {
-      #expect(opened == false)
-    }
+    #expect(fixture.session.begin(owner: owner))
+    #expect(fixture.session.handlePress(.ok, owner: owner))
+
     #expect(fixture.session.isActive == false)
-    #expect(fixture.events.last == .commandUp)
+    #expect(fixture.presenter.events.suffix(2) == [.dismiss, .activate(22)])
+    #expect(fixture.activatedApplications == [fixture.availableApplications[1]])
+    #expect(fixture.session.handlePress(.ok, owner: owner) == false)
+    #expect(fixture.activatedApplications.count == 1)
   }
 
-  @Test func reopeningCancelsPreviousSelectionBeforeStartingAnother() {
+  @Test func reopeningDismissesThePreviousSelectionBeforePresentingAnother() {
     let fixture = SwitcherFixture()
     #expect(fixture.session.begin(owner: UUID()))
     let nextOwner = UUID()
     #expect(fixture.session.begin(owner: nextOwner))
-    #expect(
-      fixture.events.suffix(6) == [
-        .down(53), .up(53), .commandUp, .commandDown, .down(48), .up(48),
-      ])
+    #expect(fixture.presenter.events.suffix(2) == [.dismiss, .show([11, 22, 33], 1)])
     #expect(fixture.session.isOwned(by: nextOwner))
+    #expect(fixture.activatedApplications.isEmpty)
     fixture.session.cancel(owner: nextOwner)
     #expect(fixture.session.isActive == false)
   }
@@ -136,46 +175,60 @@ struct AppSwitcherSessionTests {
     fixture.session.updatePressedButtons([.left], owner: other)
     #expect(fixture.session.canBegin(owner: owner) == false)
     #expect(fixture.session.begin(owner: owner) == false)
-    #expect(fixture.events.isEmpty)
+    #expect(fixture.presenter.events.isEmpty)
     fixture.session.updatePressedButtons([], owner: other)
     #expect(fixture.session.canBegin(owner: owner))
     #expect(fixture.session.begin(owner: owner))
     fixture.session.cancel()
+    #expect(fixture.activatedApplications.isEmpty)
   }
 }
 
-enum SwitcherFailureStage: CaseIterable {
-  case command, openingTab, navigationTab
+private enum SwitcherPresentationEvent: Equatable {
+  case show([Int32], Int)
+  case select(Int)
+  case dismiss
+  case activate(Int32)
 }
 
-private struct SwitcherKeyEvent: Equatable {
-  let code: CGKeyCode
-  let isDown: Bool
-  let flags: CGEventFlags
+@MainActor
+private final class SwitcherTestPresenter: AppSwitcherPresenting {
+  var events: [SwitcherPresentationEvent] = []
 
-  static let commandDown = Self(code: 55, isDown: true, flags: .maskCommand)
-  static let commandUp = Self(code: 55, isDown: false, flags: [])
-  static func down(_ code: CGKeyCode, flags: CGEventFlags = .maskCommand) -> Self {
-    Self(code: code, isDown: true, flags: flags)
+  func show(applications: [AppSwitcherApplication], selectedIndex: Int) {
+    events.append(.show(applications.map(\.processIdentifier), selectedIndex))
   }
-  static func up(_ code: CGKeyCode, flags: CGEventFlags = .maskCommand) -> Self {
-    Self(code: code, isDown: false, flags: flags)
-  }
+
+  func select(index: Int) { events.append(.select(index)) }
+
+  func dismiss() { events.append(.dismiss) }
 }
 
 @MainActor
 private final class SwitcherFixture {
   var trusted = true
-  var failedDownKey: CGKeyCode?
-  var events: [SwitcherKeyEvent] = []
+  var activationSucceeds = true
+  var availableApplications = [Int32(11), 22, 33].map { identifier in
+    AppSwitcherApplication(
+      processIdentifier: identifier,
+      bundleIdentifier: "com.example.switcher.\(identifier)",
+      name: "App \(identifier)",
+      bundleURL: URL(fileURLWithPath: "/Applications/TestApp\(identifier).app")
+    )
+  }
+  var activatedApplications: [AppSwitcherApplication] = []
+  let presenter = SwitcherTestPresenter()
   let scheduler = SwitcherTestScheduler()
   lazy var session = AppSwitcherSession(
     scheduler: scheduler,
     accessibilityTrusted: { [unowned self] in trusted },
-    postKeyState: { [unowned self] code, isDown, flags in
-      events.append(SwitcherKeyEvent(code: code, isDown: isDown, flags: flags))
-      return !(isDown && code == failedDownKey)
+    applications: { [unowned self] in availableApplications },
+    activateApplication: { [unowned self] application in
+      presenter.events.append(.activate(application.processIdentifier))
+      activatedApplications.append(application)
+      return activationSucceeds
     },
+    presenter: presenter,
     diagnosticLogger: { _ in }
   )
 }

@@ -18,7 +18,7 @@ struct HIDAppSwitcherTests {
 
     #expect(harness.output.ordinaryActions == [.appSwitcher])
     #expect(harness.session.isActive == false)
-    #expect(harness.output.keyDownCodes.isEmpty)
+    #expect(harness.output.events == [.action(.appSwitcher)])
   }
 
   @Test func longTVLatchesUntilOKAndRepeatedReportsDoNotNavigateTwice() throws {
@@ -34,12 +34,8 @@ struct HIDAppSwitcherTests {
     harness.scheduler.advance(by: 1)
     #expect(harness.session.isActive)
     let openedEvents = harness.output.events
-    #expect(
-      openedEvents == [
-        .key(55, true, .maskCommand),
-        .key(48, true, .maskCommand),
-        .key(48, false, .maskCommand),
-      ])
+    #expect(openedEvents == [.show(1)])
+    #expect(harness.session.selectedApplication?.processIdentifier == 22)
     harness.report([], to: monitor)
     #expect(harness.session.isActive)
     #expect(harness.output.events == openedEvents)
@@ -47,25 +43,21 @@ struct HIDAppSwitcherTests {
     harness.report([.left], to: monitor)
     harness.report([.left], to: monitor)
     harness.scheduler.advance(by: 600)
-    #expect(
-      harness.output.events.filter { $0 == .key(48, true, [.maskCommand, .maskShift]) }.count
-        == 1)
+    #expect(harness.session.selectedApplication?.processIdentifier == 11)
+    #expect(harness.output.events.filter { $0 == .select(0) }.count == 1)
     harness.report([], to: monitor)
     harness.report([.right], to: monitor)
     harness.report([], to: monitor)
-    #expect(
-      harness.output.events.dropFirst(openedEvents.count) == [
-        .key(48, true, [.maskCommand, .maskShift]),
-        .key(48, false, [.maskCommand, .maskShift]),
-        .key(48, true, .maskCommand),
-        .key(48, false, .maskCommand),
-      ])
+    #expect(harness.session.selectedApplication?.processIdentifier == 22)
+    #expect(harness.output.events.dropFirst(openedEvents.count) == [.select(0), .select(1)])
     harness.report([.ok], to: monitor)
     harness.report([], to: monitor)
 
     #expect(harness.session.isActive == false)
     #expect(harness.output.ordinaryActions.isEmpty)
-    #expect(harness.output.commandReleaseCount == 1)
+    #expect(harness.output.dismissCount == 1)
+    #expect(harness.output.activatedIdentifiers == [22])
+    #expect(harness.output.events.suffix(2) == [.dismiss, .activate(22)])
   }
 
   @Test func modalPressesIgnoreConfiguredGesturesAndSuppressNativeEdges() throws {
@@ -103,13 +95,9 @@ struct HIDAppSwitcherTests {
 
     #expect(harness.session.isActive == false)
     #expect(harness.output.ordinaryActions.isEmpty)
-    #expect(
-      harness.output.events.filter { $0 == .key(48, true, [.maskCommand, .maskShift]) }.count
-        == 1)
-    // Command-Tab opens once and then advances once on the right press.
-    #expect(harness.output.events.filter { $0 == .key(48, true, .maskCommand) }.count == 2)
-    #expect(harness.output.keyDownCodes.contains(123) == false)
-    #expect(harness.output.keyDownCodes.contains(124) == false)
+    #expect(harness.output.events.filter { $0 == .select(0) }.count == 1)
+    #expect(harness.output.events.filter { $0 == .select(1) }.count == 1)
+    #expect(harness.output.activatedIdentifiers == [22])
   }
 
   @Test func anotherButtonCancelsBeforeItsOrdinaryMappingExecutes() throws {
@@ -124,9 +112,10 @@ struct HIDAppSwitcherTests {
 
     #expect(harness.session.isActive == false)
     #expect(harness.output.ordinaryActions == [.commandCopy])
-    let releaseIndex = try #require(harness.output.events.firstIndex(of: .key(55, false, [])))
+    let dismissIndex = try #require(harness.output.events.firstIndex(of: .dismiss))
     let actionIndex = try #require(harness.output.events.firstIndex(of: .action(.commandCopy)))
-    #expect(releaseIndex < actionIndex)
+    #expect(dismissIndex < actionIndex)
+    #expect(harness.output.activatedIdentifiers.isEmpty)
   }
 
   @Test func backCancelsWithoutDeletingAndAllNormalMappingsReturnAfterward() throws {
@@ -144,8 +133,8 @@ struct HIDAppSwitcherTests {
     harness.scheduler.advance(by: 1_000)
     #expect(harness.session.isActive == false)
     #expect(harness.output.ordinaryActions.isEmpty)
-    #expect(harness.output.keyDownCodes.filter { $0 == 53 }.count == 1)
-    #expect(harness.output.commandReleaseCount == 1)
+    #expect(harness.output.dismissCount == 1)
+    #expect(harness.output.activatedIdentifiers.isEmpty)
 
     for button in [RemoteButton.left, .right, .ok, .back] {
       harness.report([button], to: monitor)
@@ -168,9 +157,10 @@ struct HIDAppSwitcherTests {
     harness.report([], to: second)
     #expect(harness.session.isActive == false)
     #expect(harness.output.ordinaryActions == [.returnKey])
-    let releaseIndex = try #require(harness.output.events.firstIndex(of: .key(55, false, [])))
+    let dismissIndex = try #require(harness.output.events.firstIndex(of: .dismiss))
     let actionIndex = try #require(harness.output.events.firstIndex(of: .action(.returnKey)))
-    #expect(releaseIndex < actionIndex)
+    #expect(dismissIndex < actionIndex)
+    #expect(harness.output.activatedIdentifiers.isEmpty)
 
     harness.openSwitcher(using: second)
     first.stop()
@@ -199,7 +189,7 @@ struct HIDAppSwitcherTests {
     #expect(suppressor.handle(type: .keyUp, event: up) == false)
     harness.openSwitcher(using: owner)
     #expect(harness.session.isActive)
-    #expect(harness.output.keyDownCodes.filter { $0 == 55 }.count == 1)
+    #expect(harness.output.events.filter { $0 == .show(1) }.count == 1)
     #expect(harness.output.ordinaryActions.isEmpty)
   }
 
@@ -227,7 +217,9 @@ struct HIDAppSwitcherTests {
   }
 
   @Test(arguments: HIDAppSwitcherCleanup.allCases)
-  func cleanupReleasesTheLatchedCommand(_ cleanup: HIDAppSwitcherCleanup) throws {
+  func cleanupDismissesWithoutActivatingTheSelectedApplication(_ cleanup: HIDAppSwitcherCleanup)
+    throws
+  {
     let harness = try HIDAppSwitcherHarness()
     defer { harness.close() }
     let monitor = harness.makeMonitor(fingerprint: "cleanup-owner")
@@ -245,7 +237,8 @@ struct HIDAppSwitcherTests {
     }
 
     #expect(harness.session.isActive == false)
-    #expect(harness.output.commandReleaseCount == 1)
+    #expect(harness.output.dismissCount == 1)
+    #expect(harness.output.activatedIdentifiers.isEmpty)
     #expect(harness.output.ordinaryActions.isEmpty)
   }
 
@@ -278,7 +271,10 @@ enum HIDAppSwitcherCleanup: CaseIterable {
 }
 
 private enum HIDAppSwitcherEvent: Equatable {
-  case key(CGKeyCode, Bool, CGEventFlags)
+  case show(Int)
+  case select(Int)
+  case dismiss
+  case activate(Int32)
   case action(ButtonAction)
 }
 
@@ -286,18 +282,41 @@ private enum HIDAppSwitcherEvent: Equatable {
 private final class HIDAppSwitcherOutput {
   var events: [HIDAppSwitcherEvent] = []
   var permissionsGranted = true
+  let availableApplications = [Int32(11), 22, 33].map { identifier in
+    AppSwitcherApplication(
+      processIdentifier: identifier,
+      bundleIdentifier: "com.example.hid-switcher.\(identifier)",
+      name: "App \(identifier)",
+      bundleURL: URL(fileURLWithPath: "/Applications/HIDTestApp\(identifier).app")
+    )
+  }
 
   var ordinaryActions: [ButtonAction] {
     events.compactMap { if case .action(let action) = $0 { action } else { nil } }
   }
 
-  var keyDownCodes: [CGKeyCode] {
-    events.compactMap { if case .key(let code, true, _) = $0 { code } else { nil } }
+  var activatedIdentifiers: [Int32] {
+    events.compactMap { if case .activate(let identifier) = $0 { identifier } else { nil } }
   }
 
-  var commandReleaseCount: Int {
-    events.filter { $0 == .key(55, false, []) }.count
+  var dismissCount: Int {
+    events.filter { $0 == .dismiss }.count
   }
+}
+
+@MainActor
+private final class HIDAppSwitcherPresenter: AppSwitcherPresenting {
+  let output: HIDAppSwitcherOutput
+
+  init(output: HIDAppSwitcherOutput) { self.output = output }
+
+  func show(applications: [AppSwitcherApplication], selectedIndex: Int) {
+    output.events.append(.show(selectedIndex))
+  }
+
+  func select(index: Int) { output.events.append(.select(index)) }
+
+  func dismiss() { output.events.append(.dismiss) }
 }
 
 @MainActor
@@ -307,6 +326,7 @@ private final class HIDAppSwitcherHarness {
   let settings: AppSettings
   let scheduler: HIDAppSwitcherManualScheduler
   let output: HIDAppSwitcherOutput
+  let presenter: HIDAppSwitcherPresenter
   let session: AppSwitcherSession
   private var monitors: [HIDRemoteMonitor] = []
 
@@ -316,19 +336,23 @@ private final class HIDAppSwitcherHarness {
     let settings = AppSettings(defaults: defaults)
     let scheduler = HIDAppSwitcherManualScheduler()
     let output = HIDAppSwitcherOutput()
+    let presenter = HIDAppSwitcherPresenter(output: output)
     self.suiteName = suiteName
     self.defaults = defaults
     self.settings = settings
     self.scheduler = scheduler
     self.output = output
+    self.presenter = presenter
     settings.customMappingEnabled = true
     session = AppSwitcherSession(
       scheduler: scheduler,
       accessibilityTrusted: { output.permissionsGranted },
-      postKeyState: { code, isDown, flags in
-        output.events.append(.key(code, isDown, flags))
+      applications: { output.availableApplications },
+      activateApplication: { application in
+        output.events.append(.activate(application.processIdentifier))
         return true
       },
+      presenter: presenter,
       diagnosticLogger: { _ in }
     )
   }

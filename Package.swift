@@ -18,6 +18,8 @@ let package = Package(
         "AppLogger.swift",
         "AppRuntimeState.swift",
         "AppSettings.swift",
+        "AppSwitcherPanel.swift",
+        "AppSwitcherVerification.swift",
         "AppSwitcherSession.swift",
         "AudioDriverManager.swift",
         "AudioOutput.swift",

@@ -38,3 +38,9 @@ swift test
 ## 提交前 / Before submitting
 
 Run `./scripts/test.sh`, then complete the physical checks in [TESTING.md](TESTING.md). Automated tests do not prove radio quality, system permission continuity, driver enumeration, or real application focus behavior.
+
+### 选择条的真实界面验证 / Live switcher verification
+
+Debug builds include an opt-in `--verify-app-switcher` runner. Build with `CONFIGURATION=debug ./scripts/build-app.sh`, then run `dist/SayAll.app/Contents/MacOS/RemoteMic --verify-app-switcher` in an interactive terminal. It does not start Bluetooth, audio, login items, or the normal app lifecycle. It uses a temporary preferences suite, the real HID report parser and gesture recognizer, the production selection panel, and actual system application activation. Release builds do not expose this entry point.
+
+Send `open`, wait for `stage=opened`, then send `left` / `right` one command at a time. Observe the actual highlighted icon and app name, including the third app and beyond. `ok` must close the strip and report `activation_matches=true` for the real frontmost PID. Reopen and send `back`; it must report `cancellation_preserves_front=true`. Command must remain unpressed. `quit` (or EOF / the three-minute watchdog) removes the temporary suite, closes the strip, and restores the original frontmost app. Existing Accessibility permission is required; the runner never prompts or changes permissions. Do not run it while a physical-remote selection session is active.

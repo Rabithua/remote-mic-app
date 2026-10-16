@@ -73,7 +73,12 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
   private var bluetoothVoiceTraceRoute = "none"
 
   private let hidEventSuppressor = KeyboardEventSuppressor()
-  private let appSwitcher = AppSwitcherSession()
+  private lazy var appSwitcher = AppSwitcherSession(
+    presenter: AppSwitcherPanel(localizedText: { [weak self] key in
+      guard let self else { return key }
+      return LocalizationStore(settings: settings).text(key)
+    })
+  )
   private var hidMonitors: [String: HIDRemoteMonitor] = [:]
   private var discoveryHIDMonitor: HIDRemoteMonitor?
   private var hidPowerKeySuppressed = false
