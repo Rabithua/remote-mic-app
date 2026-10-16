@@ -69,18 +69,15 @@
       var nativeTVIsDown = false
       func nativeTV(_ isDown: Bool, repeated: Bool = false) {
         guard replayNativeEvents,
-          !CommandLine.arguments.contains("--native-tv-no-events"),
           let event = CGEvent(keyboardEventSource: nativeSource, virtualKey: 10, keyDown: isDown)
         else { return }
         emit(
           "VERIFY native_tv down=\(isDown) repeat=\(repeated) natural_flags=\(event.flags.rawValue) hid_flags=\(CGEventSource.flagsState(.hidSystemState).rawValue) combined_flags=\(CGEventSource.flagsState(.combinedSessionState).rawValue)"
         )
-        if CommandLine.arguments.contains("--native-tv-source-flags") {
-          event.flags.formUnion(.maskNonCoalesced)
-        } else {
-          // Measured RC003 flags at rest; deliberately stress modifier resets.
-          event.flags = .maskNonCoalesced
-        }
+        // RC003 uses non-coalesced events. Preserve the source's live modifier
+        // state: forcing its flags-at-rest (0x100) here would manufacture a
+        // Command release that a real event source did not report.
+        event.flags.formUnion(.maskNonCoalesced)
         event.setIntegerValueField(.keyboardEventAutorepeat, value: repeated ? 1 : 0)
         // Deliberately not tagged as our synthetic output: exercise the real tap.
         event.post(tap: .cghidEventTap)
