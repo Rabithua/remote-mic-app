@@ -150,6 +150,7 @@
               }
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(duration)) {
+              describe("held_\(mode)_\(duration)ms")
               if mode == "disconnect" {
                 monitor.disconnectSimulatedDevice()
               } else if mode == "cancel" {
