@@ -33,6 +33,9 @@
       }
       var sandbox: NSWindow?
       if replayNativeEvents {
+        // The sink must be a real foreground app, not an accessory window
+        // receiving background accessibility clicks. This is DEBUG-only.
+        app.setActivationPolicy(.regular)
         let window = NSWindow(
           contentRect: NSRect(x: 0, y: 0, width: 440, height: 140),
           styleMask: [.titled, .closable], backing: .buffered, defer: false)
@@ -49,6 +52,7 @@
         window.center()
         window.makeKeyAndOrderFront(nil)
         window.makeFirstResponder(sink)
+        app.activate(ignoringOtherApps: true)
         sandbox = window
       }
       let monitor = HIDRemoteMonitor(
