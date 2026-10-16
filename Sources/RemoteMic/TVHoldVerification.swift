@@ -24,15 +24,55 @@
       settings.setAction(.appSwitcher, for: .tv)
       settings.setAction(.browseApps, for: .tv, trigger: .longPress)
       let session = AppSwitcherSession(diagnosticLogger: emit)
+      let replayNativeEvents = CommandLine.arguments.contains("--with-native-tv-events")
+      let suppressor = KeyboardEventSuppressor()
+      if replayNativeEvents, !suppressor.start() {
+        defaults.removePersistentDomain(forName: suite)
+        emit("VERIFY unavailable: native event suppressor could not start")
+        return
+      }
+      var sandbox: NSWindow?
+      if replayNativeEvents {
+        let window = NSWindow(
+          contentRect: NSRect(x: 0, y: 0, width: 440, height: 140),
+          styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        window.title = "SayAll Native HID Verification"
+        window.isReleasedWhenClosed = false
+        let sink = VerificationInputSink(frame: window.contentView!.bounds)
+        window.contentView = sink
+        let label = NSTextField(
+          labelWithString:
+            "Native TV replay · isolated test window\nNo user data is opened or saved.")
+        label.frame = NSRect(x: 24, y: 44, width: 392, height: 52)
+        label.maximumNumberOfLines = 2
+        sink.addSubview(label)
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        window.makeFirstResponder(sink)
+        sandbox = window
+      }
       let monitor = HIDRemoteMonitor(
-        settings: settings, profileID: profile, appSwitcher: session,
+        settings: settings, profileID: profile, eventSuppressor: suppressor, appSwitcher: session,
         runtimePermissions: { KeyboardInjector.isAccessibilityTrusted },
         actionPerformer: { _, _, configured in
           guard configured.action == .appSwitcher else { return false }
           return KeyboardInjector.send(.appSwitcher)
         }, diagnosticLogger: emit)
-      monitor.connectSimulatedDevice(fingerprint: suite, profileID: profile)
+      monitor.connectSimulatedDevice(
+        fingerprint: suite, profileID: profile, isSeized: !replayNativeEvents)
       var busy = false
+      let nativeSource = CGEventSource(stateID: .hidSystemState)
+      var nativeTVIsDown = false
+      func nativeTV(_ isDown: Bool, repeated: Bool = false) {
+        guard replayNativeEvents,
+          let event = CGEvent(keyboardEventSource: nativeSource, virtualKey: 10, keyDown: isDown)
+        else { return }
+        event.flags = []
+        event.setIntegerValueField(.keyboardEventAutorepeat, value: repeated ? 1 : 0)
+        // Deliberately not tagged as our synthetic output: exercise the real tap.
+        event.post(tap: .cghidEventTap)
+        nativeTVIsDown = isDown
+      }
       func report(_ button: RemoteButton?) {
         let usage = button?.hidUsage ?? 0
         monitor.handleSimulatedReport(
@@ -45,8 +85,11 @@
         )
       }
       func cleanup() {
+        if nativeTVIsDown { nativeTV(false) }
         monitor.stop()
         session.cancel()
+        suppressor.stop()
+        sandbox?.orderOut(nil)
         FileHandle.standardInput.readabilityHandler = nil
         defaults.removePersistentDomain(forName: suite)
         original?.activate()
@@ -73,12 +116,33 @@
               describe("idle_or_invalid_command")
               continue
             }
+            if replayNativeEvents,
+              NSWorkspace.shared.frontmostApplication?.processIdentifier
+                != ProcessInfo.processInfo.processIdentifier
+            {
+              emit("VERIFY refused: first click the isolated test window")
+              continue
+            }
             busy = true
-            monitor.connectSimulatedDevice(fingerprint: suite, profileID: profile)
+            monitor.connectSimulatedDevice(
+              fingerprint: suite, profileID: profile, isSeized: !replayNativeEvents)
             let before = NSWorkspace.shared.frontmostApplication?.processIdentifier
             let mode = String(fields[0])
             describe("before_\(mode)_\(duration)ms")
             report(.tv)
+            if replayNativeEvents {
+              nativeTV(true)
+              // Include unseized native autorepeat while our private Command is held.
+              for delay in stride(from: 700, to: duration, by: 100) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(delay)) {
+                  guard session.isActive,
+                    NSWorkspace.shared.frontmostApplication?.processIdentifier
+                      == ProcessInfo.processInfo.processIdentifier
+                  else { return }
+                  nativeTV(true, repeated: true)
+                }
+              }
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(duration)) {
               if mode == "disconnect" {
                 monitor.disconnectSimulatedDevice()
@@ -88,6 +152,7 @@
               } else {
                 report(nil)
               }
+              if replayNativeEvents { nativeTV(false) }
               DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500)) {
                 describe("after_\(mode)_\(duration)ms")
                 let unchanged = NSWorkspace.shared.frontmostApplication?.processIdentifier == before
@@ -106,6 +171,14 @@
     private static func emit(_ message: String) {
       print(message)
       fflush(stdout)
+    }
+  }
+
+  @MainActor
+  private final class VerificationInputSink: NSView {
+    override var acceptsFirstResponder: Bool { true }
+    override func keyDown(with event: NSEvent) {
+      if event.keyCode == 10 { print("VERIFY FAIL native TV event leaked through suppressor") }
     }
   }
 #endif
