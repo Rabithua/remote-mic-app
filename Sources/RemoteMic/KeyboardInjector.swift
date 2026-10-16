@@ -213,7 +213,7 @@ enum KeyboardInjector {
     case .appSwitcher:
       keyPoster(48, .maskCommand)
     case .browseApps:
-      // A held modifier must be owned by AppSwitcherSession, never a one-shot action.
+      // The physical hold/release lifetime is owned by AppSwitcherSession.
       return false
     case .volumeUp:
       postSystemKey(type: 0)
@@ -1383,12 +1383,34 @@ enum KeyboardInjector {
     up.post(tap: .cghidEventTap)
   }
 
-  static func postAppSwitcherKeyState(
+  static func makeAppSwitcherKeyPoster() -> KeyStatePoster {
+    // A private table keeps this remote's held modifier separate from incoming
+    // physical HID state. Its source must survive the entire hold/release pair.
+    let source = CGEventSource(stateID: .privateState)
+    source?.localEventsSuppressionInterval = 0
+    return { code, isDown, flags in
+      guard let source,
+        let event = makeAppSwitcherKeyboardEvent(
+          source: source, code: code, isDown: isDown, flags: flags)
+      else { return false }
+      event.post(tap: .cghidEventTap)
+      return true
+    }
+  }
+
+  static func makeAppSwitcherKeyboardEvent(
+    source: CGEventSource,
     code: CGKeyCode,
     isDown: Bool,
     flags: CGEventFlags
-  ) -> Bool {
-    postKeyboardState(code: code, isDown: isDown, flags: flags, isModifier: code == 55)
+  ) -> CGEvent? {
+    guard let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: isDown)
+    else { return nil }
+    // CGEvent builds modifier events with device-specific bits (e.g. left Cmd).
+    // Do not discard those bits by replacing them with maskCommand alone.
+    if code != 55 { event.flags.formUnion(flags) }
+    event.setIntegerValueField(.eventSourceUserData, value: syntheticEventMarker)
+    return event
   }
 
   private static func postKeyState(
@@ -1396,19 +1418,9 @@ enum KeyboardInjector {
     isDown: Bool,
     flags: CGEventFlags
   ) -> Bool {
-    postKeyboardState(code: code, isDown: isDown, flags: flags, isModifier: false)
-  }
-
-  private static func postKeyboardState(
-    code: CGKeyCode,
-    isDown: Bool,
-    flags: CGEventFlags,
-    isModifier: Bool
-  ) -> Bool {
     guard let source = CGEventSource(stateID: .hidSystemState),
       let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: isDown)
     else { return false }
-    if isModifier { event.type = .flagsChanged }
     event.flags = flags
     event.setIntegerValueField(.eventSourceUserData, value: syntheticEventMarker)
     event.post(tap: .cghidEventTap)

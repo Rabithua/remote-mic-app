@@ -728,7 +728,12 @@ final class HIDRemoteMonitor {
         eventSuppressor.arm(button: button, edge: .up)
       }
       repeatTimers.removeValue(forKey: usage)?.cancel()
-      if usedAppSwitcher { continue }
+      if usedAppSwitcher {
+        if let button = RemoteButton.usageMap[usage] {
+          appSwitcher.handleRelease(button, owner: appSwitcherOwner)
+        }
+        continue
+      }
       if let button = RemoteButton.usageMap[usage] {
         scheduleNonRepeatableRelease(for: button)
         guard processGestureCommands(gestureRecognizer.release(button)) else { return }
@@ -1032,12 +1037,19 @@ final class HIDRemoteMonitor {
     )
     let performed: Bool
     if configured.action == .browseApps {
-      guard appSwitcher.canBegin(owner: appSwitcherOwner) else {
-        diagnosticLogger("HID APP_SWITCHER ignored reason=other_remote_busy")
-        return true
+      // A click/double-click may resolve after key-up. Never start a held
+      // modifier without a future physical release to commit it.
+      if !activeUsages.contains(button.hidUsage) {
+        performed = actionPerformer(
+          button, trigger, ConfiguredButtonAction(action: .appSwitcher, shortcut: nil))
+      } else {
+        guard appSwitcher.canBegin(owner: appSwitcherOwner) else {
+          diagnosticLogger("HID APP_SWITCHER ignored reason=other_remote_busy")
+          return true
+        }
+        cancelPendingActionsForAppSwitcher()
+        performed = appSwitcher.begin(owner: appSwitcherOwner, button: button)
       }
-      cancelPendingActionsForAppSwitcher()
-      performed = appSwitcher.begin(owner: appSwitcherOwner)
     } else {
       performed = actionPerformer(button, trigger, configured)
     }

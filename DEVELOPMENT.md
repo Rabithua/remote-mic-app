@@ -38,3 +38,9 @@ swift test
 ## 提交前 / Before submitting
 
 Run `./scripts/test.sh`, then complete the physical checks in [TESTING.md](TESTING.md). Automated tests do not prove radio quality, system permission continuity, driver enumeration, or real application focus behavior.
+
+### TV 持有的真实验证 / Live TV-hold verification
+
+Debug builds provide an explicit `--verify-tv-hold` runner; Release builds have no such entry point. Build using `CONFIGURATION=debug ./scripts/build-app.sh`, then run `dist/SayAll.app/Contents/MacOS/RemoteMic --verify-tv-hold` in an interactive terminal. Existing Accessibility permission is required; it does not prompt or alter TCC.
+
+The runner uses an isolated temporary preferences suite, the real HID parser and gesture recognizer, production timers, and real CGEvent output. It never starts Bluetooth, audio, or a physical HID manager. Do not use the physical remote during verification. Send one command at a time and wait for the after-stage result: `cycle 1250`, `cycle 1600`, `cycle 1950` simulate different hold durations; `cancel 1250` and `disconnect 1250` must preserve the frontmost app. Verify actual frontmost PIDs/apps, reaching at least three apps rather than merely trusting event-post logs; confirm no Command/Tab remains down after each run. `quit`, EOF, or the three-minute watchdog cancels the session and removes the temporary suite. The runner attempts to restore the original frontmost app on exit; verify focus separately. Simulated HID reports do not prove the physical Bluetooth device's native event timing.
