@@ -71,9 +71,15 @@
         guard replayNativeEvents,
           let event = CGEvent(keyboardEventSource: nativeSource, virtualKey: 10, keyDown: isDown)
         else { return }
-        // RC003's measured native TV event uses 0x100 (non-coalesced),
-        // with no keyboard modifier; mirror the hardware, not an empty mask.
-        event.flags = .maskNonCoalesced
+        emit(
+          "VERIFY native_tv down=\(isDown) repeat=\(repeated) natural_flags=\(event.flags.rawValue) hid_flags=\(CGEventSource.flagsState(.hidSystemState).rawValue) combined_flags=\(CGEventSource.flagsState(.combinedSessionState).rawValue)"
+        )
+        if CommandLine.arguments.contains("--native-tv-source-flags") {
+          event.flags.formUnion(.maskNonCoalesced)
+        } else {
+          // Measured RC003 flags at rest; deliberately stress modifier resets.
+          event.flags = .maskNonCoalesced
+        }
         event.setIntegerValueField(.keyboardEventAutorepeat, value: repeated ? 1 : 0)
         // Deliberately not tagged as our synthetic output: exercise the real tap.
         event.post(tap: .cghidEventTap)
