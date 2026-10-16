@@ -75,6 +75,47 @@ struct AppSwitcherSessionTests {
     #expect(fixture.session.handleRelease(.tv, owner: owner) == false)
   }
 
+  @Test func backAfterTabUpPostsTheCompleteCancellationSequenceWithoutAnExtraTabUp() {
+    let fixture = SwitcherFixture()
+    let owner = UUID()
+    #expect(fixture.session.begin(owner: owner))
+    fixture.scheduler.advance(by: 20)
+    #expect(fixture.events == [.commandDown, .down(48), .up(48)])
+
+    #expect(fixture.session.handlePress(.back, owner: owner))
+
+    #expect(
+      fixture.events == [
+        .commandDown, .down(48), .up(48), .down(53), .up(53), .commandUp,
+      ])
+    #expect(fixture.session.isActive == false)
+    #expect(fixture.session.handleRelease(.tv, owner: owner) == false)
+    let count = fixture.events.count
+    fixture.scheduler.advance(by: 40_000)
+    #expect(fixture.events.count == count)
+  }
+
+  @Test(arguments: [true, false])
+  func failedEscapePostingStillAttemptsCommandRelease(failingOnKeyDown: Bool) {
+    let fixture = SwitcherFixture()
+    let owner = UUID()
+    #expect(fixture.session.begin(owner: owner))
+    fixture.scheduler.advance(by: 20)
+    fixture.failedEvent = failingOnKeyDown ? .down(53) : .up(53)
+
+    #expect(fixture.session.handlePress(.back, owner: owner))
+
+    #expect(fixture.failedEvent == nil)
+    #expect(
+      fixture.events == [
+        .commandDown, .down(48), .up(48), .down(53), .up(53), .commandUp,
+      ])
+    #expect(fixture.session.isActive == false)
+    let count = fixture.events.count
+    fixture.scheduler.advance(by: 40_000)
+    #expect(fixture.events.count == count)
+  }
+
   @Test(arguments: [RemoteButton.left, .right, .ok, .volumeUp])
   func unrelatedButtonsCancelBeforeTheirOrdinaryMappings(_ button: RemoteButton) {
     let fixture = SwitcherFixture()

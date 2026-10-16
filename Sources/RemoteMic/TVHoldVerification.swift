@@ -23,22 +23,7 @@
       settings.customMappingEnabled = true
       settings.setAction(.appSwitcher, for: .tv)
       settings.setAction(.browseApps, for: .tv, trigger: .longPress)
-      let productionPoster = KeyboardInjector.makeAppSwitcherKeyPoster()
-      let session = AppSwitcherSession(
-        postKeyState: { code, down, flags in
-          if code == 53, down, CommandLine.arguments.contains("--cancel-reassert-command") {
-            _ = productionPoster(55, true, .maskCommand)
-          }
-          if code == 53, down, CommandLine.arguments.contains("--cancel-delay-before-escape") {
-            // Bounded, DEBUG-only protocol experiment, not UI/application logic.
-            Thread.sleep(forTimeInterval: 0.02)
-          }
-          let posted = productionPoster(code, down, flags)
-          if code == 53, down, CommandLine.arguments.contains("--cancel-hold-escape") {
-            Thread.sleep(forTimeInterval: 0.02)
-          }
-          return posted
-        }, diagnosticLogger: emit)
+      let session = AppSwitcherSession(diagnosticLogger: emit)
       let replayNativeEvents = CommandLine.arguments.contains("--with-native-tv-events")
       let suppressor = KeyboardEventSuppressor()
       if replayNativeEvents, !suppressor.start() {
@@ -88,8 +73,7 @@
         else { return }
         // RC003's measured native TV event uses 0x100 (non-coalesced),
         // with no keyboard modifier; mirror the hardware, not an empty mask.
-        event.flags =
-          CommandLine.arguments.contains("--native-tv-zero-flags") ? [] : .maskNonCoalesced
+        event.flags = .maskNonCoalesced
         event.setIntegerValueField(.keyboardEventAutorepeat, value: repeated ? 1 : 0)
         // Deliberately not tagged as our synthetic output: exercise the real tap.
         event.post(tap: .cghidEventTap)

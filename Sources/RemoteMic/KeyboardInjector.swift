@@ -1387,7 +1387,10 @@ enum KeyboardInjector {
     up.post(tap: .cghidEventTap)
   }
 
-  static func makeAppSwitcherKeyPoster() -> KeyStatePoster {
+  static func makeAppSwitcherKeyPoster(
+    postEvent: @escaping (CGEvent) -> Void = { $0.post(tap: .cghidEventTap) },
+    holdEscape: @escaping () -> Void = { usleep(20_000) }
+  ) -> KeyStatePoster {
     // A private table keeps this remote's held modifier separate from incoming
     // physical HID state. Its source must survive the entire hold/release pair.
     let source = CGEventSource(stateID: .privateState)
@@ -1397,7 +1400,13 @@ enum KeyboardInjector {
         let event = makeAppSwitcherKeyboardEvent(
           source: source, code: code, isDown: isDown, flags: flags)
       else { return false }
-      event.post(tap: .cghidEventTap)
+      postEvent(event)
+      if code == 53, isDown {
+        // Dock can miss an instantaneous Escape/Cmd-up burst. Keep this bounded
+        // keyboard pulse synchronous: Command must be released before returning
+        // to another remote mapping, not in a later main-queue callback.
+        holdEscape()
+      }
       return true
     }
   }

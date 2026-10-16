@@ -4,6 +4,28 @@ import Testing
 @testable import RemoteMic
 
 struct AppSwitcherKeyboardTests {
+  @Test func cancellationHoldsEscapeBeforeReleasingCommand() {
+    var events: [String] = []
+    let post = KeyboardInjector.makeAppSwitcherKeyPoster(
+      postEvent: { event in
+        events.append("\(event.getIntegerValueField(.keyboardEventKeycode)):\(event.type.rawValue)")
+      },
+      holdEscape: { events.append("holdEscape") })
+    #expect(post(55, true, .maskCommand))
+    #expect(post(53, true, .maskCommand))
+    #expect(post(53, false, .maskCommand))
+    #expect(post(55, false, []))
+    #expect(events == ["55:12", "53:10", "holdEscape", "53:11", "55:12"])
+  }
+
+  @Test func ordinarySwitcherKeysDoNotWaitForEscape() {
+    var holds = 0
+    let post = KeyboardInjector.makeAppSwitcherKeyPoster(
+      postEvent: { _ in }, holdEscape: { holds += 1 })
+    #expect(KeyboardInjector.postAppSwitcherTap(keyStatePoster: post))
+    #expect(holds == 0)
+  }
+
   @Test func aQuickSwitchExplicitlyPressesAndReleasesCommand() {
     var events: [String] = []
     #expect(
