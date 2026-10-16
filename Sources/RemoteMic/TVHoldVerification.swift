@@ -69,6 +69,7 @@
       var nativeTVIsDown = false
       func nativeTV(_ isDown: Bool, repeated: Bool = false) {
         guard replayNativeEvents,
+          !CommandLine.arguments.contains("--native-tv-no-events"),
           let event = CGEvent(keyboardEventSource: nativeSource, virtualKey: 10, keyDown: isDown)
         else { return }
         emit(
