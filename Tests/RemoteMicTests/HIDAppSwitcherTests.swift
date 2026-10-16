@@ -34,6 +34,12 @@ struct HIDAppSwitcherTests {
     harness.scheduler.advance(by: 1)
     #expect(harness.session.isActive)
     let openedEvents = harness.output.events
+    #expect(
+      openedEvents == [
+        .key(55, true, .maskCommand),
+        .key(48, true, .maskCommand),
+        .key(48, false, .maskCommand),
+      ])
     harness.report([], to: monitor)
     #expect(harness.session.isActive)
     #expect(harness.output.events == openedEvents)
@@ -41,11 +47,19 @@ struct HIDAppSwitcherTests {
     harness.report([.left], to: monitor)
     harness.report([.left], to: monitor)
     harness.scheduler.advance(by: 600)
-    #expect(harness.output.keyDownCodes.filter { $0 == 123 }.count == 1)
+    #expect(
+      harness.output.events.filter { $0 == .key(48, true, [.maskCommand, .maskShift]) }.count
+        == 1)
     harness.report([], to: monitor)
     harness.report([.right], to: monitor)
     harness.report([], to: monitor)
-    #expect(harness.output.keyDownCodes.filter { $0 == 124 }.count == 1)
+    #expect(
+      harness.output.events.dropFirst(openedEvents.count) == [
+        .key(48, true, [.maskCommand, .maskShift]),
+        .key(48, false, [.maskCommand, .maskShift]),
+        .key(48, true, .maskCommand),
+        .key(48, false, .maskCommand),
+      ])
     harness.report([.ok], to: monitor)
     harness.report([], to: monitor)
 
@@ -73,6 +87,12 @@ struct HIDAppSwitcherTests {
     harness.report([], to: monitor)
     let leftUp = try #require(harness.keyEvent(code: 123, isDown: false))
     #expect(suppressor.handle(type: .keyUp, event: leftUp))
+    harness.report([.right], to: monitor)
+    let rightDown = try #require(harness.keyEvent(code: 124, isDown: true))
+    #expect(suppressor.handle(type: .keyDown, event: rightDown))
+    harness.report([], to: monitor)
+    let rightUp = try #require(harness.keyEvent(code: 124, isDown: false))
+    #expect(suppressor.handle(type: .keyUp, event: rightUp))
     harness.report([.ok], to: monitor)
     let okDown = try #require(harness.keyEvent(code: 36, isDown: true))
     #expect(suppressor.handle(type: .keyDown, event: okDown))
@@ -83,7 +103,13 @@ struct HIDAppSwitcherTests {
 
     #expect(harness.session.isActive == false)
     #expect(harness.output.ordinaryActions.isEmpty)
-    #expect(harness.output.keyDownCodes.filter { $0 == 123 }.count == 1)
+    #expect(
+      harness.output.events.filter { $0 == .key(48, true, [.maskCommand, .maskShift]) }.count
+        == 1)
+    // Command-Tab opens once and then advances once on the right press.
+    #expect(harness.output.events.filter { $0 == .key(48, true, .maskCommand) }.count == 2)
+    #expect(harness.output.keyDownCodes.contains(123) == false)
+    #expect(harness.output.keyDownCodes.contains(124) == false)
   }
 
   @Test func anotherButtonCancelsBeforeItsOrdinaryMappingExecutes() throws {
@@ -98,7 +124,7 @@ struct HIDAppSwitcherTests {
 
     #expect(harness.session.isActive == false)
     #expect(harness.output.ordinaryActions == [.commandCopy])
-    let releaseIndex = try #require(harness.output.events.firstIndex(of: .key(55, false)))
+    let releaseIndex = try #require(harness.output.events.firstIndex(of: .key(55, false, [])))
     let actionIndex = try #require(harness.output.events.firstIndex(of: .action(.commandCopy)))
     #expect(releaseIndex < actionIndex)
   }
@@ -142,7 +168,7 @@ struct HIDAppSwitcherTests {
     harness.report([], to: second)
     #expect(harness.session.isActive == false)
     #expect(harness.output.ordinaryActions == [.returnKey])
-    let releaseIndex = try #require(harness.output.events.firstIndex(of: .key(55, false)))
+    let releaseIndex = try #require(harness.output.events.firstIndex(of: .key(55, false, [])))
     let actionIndex = try #require(harness.output.events.firstIndex(of: .action(.returnKey)))
     #expect(releaseIndex < actionIndex)
 
@@ -252,7 +278,7 @@ enum HIDAppSwitcherCleanup: CaseIterable {
 }
 
 private enum HIDAppSwitcherEvent: Equatable {
-  case key(CGKeyCode, Bool)
+  case key(CGKeyCode, Bool, CGEventFlags)
   case action(ButtonAction)
 }
 
@@ -266,11 +292,11 @@ private final class HIDAppSwitcherOutput {
   }
 
   var keyDownCodes: [CGKeyCode] {
-    events.compactMap { if case .key(let code, true) = $0 { code } else { nil } }
+    events.compactMap { if case .key(let code, true, _) = $0 { code } else { nil } }
   }
 
   var commandReleaseCount: Int {
-    events.filter { $0 == .key(55, false) }.count
+    events.filter { $0 == .key(55, false, []) }.count
   }
 }
 
@@ -299,8 +325,8 @@ private final class HIDAppSwitcherHarness {
     session = AppSwitcherSession(
       scheduler: scheduler,
       accessibilityTrusted: { output.permissionsGranted },
-      postKeyState: { code, isDown, _ in
-        output.events.append(.key(code, isDown))
+      postKeyState: { code, isDown, flags in
+        output.events.append(.key(code, isDown, flags))
         return true
       },
       diagnosticLogger: { _ in }

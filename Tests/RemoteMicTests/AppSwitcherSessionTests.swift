@@ -15,8 +15,15 @@ struct AppSwitcherSessionTests {
     #expect(fixture.session.handlePress(.tv, owner: owner))
     #expect(fixture.session.handlePress(.right, owner: owner))
     #expect(fixture.session.handlePress(.left, owner: owner))
+    #expect(fixture.session.handlePress(.right, owner: owner))
     #expect(fixture.session.isActive)
-    #expect(fixture.events.suffix(4) == [.down(124), .up(124), .down(123), .up(123)])
+    #expect(
+      fixture.events.suffix(6) == [
+        .down(48), .up(48),
+        .down(48, flags: [.maskCommand, .maskShift]),
+        .up(48, flags: [.maskCommand, .maskShift]),
+        .down(48), .up(48),
+      ])
 
     #expect(fixture.session.handlePress(.ok, owner: owner))
     #expect(fixture.session.isActive == false)
@@ -88,14 +95,17 @@ struct AppSwitcherSessionTests {
     #expect(fixture.events.suffix(3) == [.down(53), .up(53), .commandUp])
   }
 
-  @Test(arguments: [CGKeyCode(55), CGKeyCode(48), CGKeyCode(124)])
-  func injectionFailureAlwaysReleasesTheModifier(failedKey: CGKeyCode) {
+  @Test(arguments: SwitcherFailureStage.allCases)
+  func injectionFailureAlwaysReleasesTheModifier(stage: SwitcherFailureStage) {
     let fixture = SwitcherFixture()
     let owner = UUID()
-    fixture.failedDownKey = failedKey
+    if stage != .navigationTab {
+      fixture.failedDownKey = stage == .command ? 55 : 48
+    }
     let opened = fixture.session.begin(owner: owner)
-    if failedKey == 124 {
+    if stage == .navigationTab {
       #expect(opened)
+      fixture.failedDownKey = 48
       #expect(fixture.session.handlePress(.right, owner: owner))
     } else {
       #expect(opened == false)
@@ -134,6 +144,10 @@ struct AppSwitcherSessionTests {
   }
 }
 
+enum SwitcherFailureStage: CaseIterable {
+  case command, openingTab, navigationTab
+}
+
 private struct SwitcherKeyEvent: Equatable {
   let code: CGKeyCode
   let isDown: Bool
@@ -141,11 +155,11 @@ private struct SwitcherKeyEvent: Equatable {
 
   static let commandDown = Self(code: 55, isDown: true, flags: .maskCommand)
   static let commandUp = Self(code: 55, isDown: false, flags: [])
-  static func down(_ code: CGKeyCode) -> Self {
-    Self(code: code, isDown: true, flags: .maskCommand)
+  static func down(_ code: CGKeyCode, flags: CGEventFlags = .maskCommand) -> Self {
+    Self(code: code, isDown: true, flags: flags)
   }
-  static func up(_ code: CGKeyCode) -> Self {
-    Self(code: code, isDown: false, flags: .maskCommand)
+  static func up(_ code: CGKeyCode, flags: CGEventFlags = .maskCommand) -> Self {
+    Self(code: code, isDown: false, flags: flags)
   }
 }
 
