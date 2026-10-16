@@ -23,7 +23,22 @@
       settings.customMappingEnabled = true
       settings.setAction(.appSwitcher, for: .tv)
       settings.setAction(.browseApps, for: .tv, trigger: .longPress)
-      let session = AppSwitcherSession(diagnosticLogger: emit)
+      let productionPoster = KeyboardInjector.makeAppSwitcherKeyPoster()
+      let session = AppSwitcherSession(
+        postKeyState: { code, down, flags in
+          if code == 53, down, CommandLine.arguments.contains("--cancel-reassert-command") {
+            _ = productionPoster(55, true, .maskCommand)
+          }
+          if code == 53, down, CommandLine.arguments.contains("--cancel-delay-before-escape") {
+            // Bounded, DEBUG-only protocol experiment, not UI/application logic.
+            Thread.sleep(forTimeInterval: 0.02)
+          }
+          let posted = productionPoster(code, down, flags)
+          if code == 53, down, CommandLine.arguments.contains("--cancel-hold-escape") {
+            Thread.sleep(forTimeInterval: 0.02)
+          }
+          return posted
+        }, diagnosticLogger: emit)
       let replayNativeEvents = CommandLine.arguments.contains("--with-native-tv-events")
       let suppressor = KeyboardEventSuppressor()
       if replayNativeEvents, !suppressor.start() {
