@@ -212,6 +212,9 @@ enum KeyboardInjector {
       keyPoster(contextualMenuKeyCode, [])
     case .appSwitcher:
       keyPoster(48, .maskCommand)
+    case .browseApps:
+      // A held modifier must be owned by AppSwitcherSession, never a one-shot action.
+      return false
     case .volumeUp:
       postSystemKey(type: 0)
     case .volumeDown:
@@ -1380,14 +1383,32 @@ enum KeyboardInjector {
     up.post(tap: .cghidEventTap)
   }
 
+  static func postAppSwitcherKeyState(
+    code: CGKeyCode,
+    isDown: Bool,
+    flags: CGEventFlags
+  ) -> Bool {
+    postKeyboardState(code: code, isDown: isDown, flags: flags, isModifier: code == 55)
+  }
+
   private static func postKeyState(
     code: CGKeyCode,
     isDown: Bool,
     flags: CGEventFlags
   ) -> Bool {
+    postKeyboardState(code: code, isDown: isDown, flags: flags, isModifier: false)
+  }
+
+  private static func postKeyboardState(
+    code: CGKeyCode,
+    isDown: Bool,
+    flags: CGEventFlags,
+    isModifier: Bool
+  ) -> Bool {
     guard let source = CGEventSource(stateID: .hidSystemState),
       let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: isDown)
     else { return false }
+    if isModifier { event.type = .flagsChanged }
     event.flags = flags
     event.setIntegerValueField(.eventSourceUserData, value: syntheticEventMarker)
     event.post(tap: .cghidEventTap)

@@ -73,6 +73,7 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
   private var bluetoothVoiceTraceRoute = "none"
 
   private let hidEventSuppressor = KeyboardEventSuppressor()
+  private let appSwitcher = AppSwitcherSession()
   private var hidMonitors: [String: HIDRemoteMonitor] = [:]
   private var discoveryHIDMonitor: HIDRemoteMonitor?
   private var hidPowerKeySuppressed = false
@@ -234,6 +235,7 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
   }
 
   func handleSystemAudioLifecycle(_ event: SystemAudioLifecycleEvent) {
+    if event.isSuspending { appSwitcher.cancel() }
     let changed = systemAudioSuspensionState.apply(event)
     guard started, changed else { return }
     AppLogger.shared.write(
@@ -584,6 +586,7 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
   }
 
   private func stopHIDMonitors() {
+    appSwitcher.cancel()
     for monitor in hidMonitors.values {
       monitor.stop()
     }
@@ -622,6 +625,7 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
       targetFingerprint: targetFingerprint,
       excludedFingerprints: excludedFingerprints,
       eventSuppressor: hidEventSuppressor,
+      appSwitcher: appSwitcher,
       ownsEventSuppressor: false,
       actionPerformer: { [weak self] _, _, configured in
         self?.performExternalConfiguredAction(configured) ?? false

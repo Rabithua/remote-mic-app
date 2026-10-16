@@ -48,6 +48,8 @@ To build or run without installing:
 4. Select the same microphone in the dictation app. Hold the remote voice button to speak and release it to stop.
 5. Switch mappings from the status menu or open Settings for click, double-click, long-press, and multi-remote configuration.
 
+By default, a short TV press switches to the previous app. Hold TV for about half a second to open the system app switcher, release TV, then use Left/Right to select, OK to switch, or Back to cancel. The selection cancels after 30 idle seconds and releases its keys on disconnect, sleep, or quit. Existing custom TV long-press mappings remain unchanged; choose or disable Browse Apps in button settings.
+
 The app does not change the system's default input or output device, store voice audio, or upload it. Missing permissions, a disconnected remote, or an invalid audio device produce status-menu warnings instead of repeatedly opening Settings.
 
 Pairing, permissions, and drivers must be configured on each Mac. If the remote is absent from system Bluetooth, check pairing mode. If the system is connected but SayAll is not ready, click Search Again. Copy Connection Diagnostics puts permission, connection, audio, and recent log details on the local clipboard, without Terminal commands or automatic uploads.
