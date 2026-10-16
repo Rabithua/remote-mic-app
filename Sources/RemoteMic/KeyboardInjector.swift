@@ -1371,6 +1371,10 @@ enum KeyboardInjector {
   }
 
   private static func postKey(code: CGKeyCode, flags: CGEventFlags = []) {
+    if code == 48, flags == .maskCommand {
+      _ = postAppSwitcherTap()
+      return
+    }
     guard let source = CGEventSource(stateID: .hidSystemState),
       let down = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: true),
       let up = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: false)
@@ -1396,6 +1400,21 @@ enum KeyboardInjector {
       event.post(tap: .cghidEventTap)
       return true
     }
+  }
+
+  @discardableResult
+  static func postAppSwitcherTap(
+    keyStatePoster: KeyStatePoster? = nil
+  ) -> Bool {
+    let post = keyStatePoster ?? makeAppSwitcherKeyPoster()
+    guard post(55, true, .maskCommand) else {
+      _ = post(55, false, [])
+      return false
+    }
+    let down = post(48, true, .maskCommand)
+    let up = post(48, false, .maskCommand)
+    let commandUp = post(55, false, [])
+    return down && up && commandUp
   }
 
   static func makeAppSwitcherKeyboardEvent(

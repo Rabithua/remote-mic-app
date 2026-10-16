@@ -4,6 +4,29 @@ import Testing
 @testable import RemoteMic
 
 struct AppSwitcherKeyboardTests {
+  @Test func aQuickSwitchExplicitlyPressesAndReleasesCommand() {
+    var events: [String] = []
+    #expect(
+      KeyboardInjector.postAppSwitcherTap(keyStatePoster: { code, down, _ in
+        events.append("\(code):\(down)")
+        return true
+      }))
+    #expect(events == ["55:true", "48:true", "48:false", "55:false"])
+  }
+
+  @Test(arguments: [0, 1, 2, 3])
+  func aQuickSwitchStillReleasesCommandAfterAnyPostingFailure(_ failedIndex: Int) {
+    var events: [String] = []
+    #expect(
+      KeyboardInjector.postAppSwitcherTap(keyStatePoster: { code, down, _ in
+        let index = events.count
+        events.append("\(code):\(down)")
+        return index != failedIndex
+      }) == false)
+    #expect(events.last == "55:false")
+    if failedIndex != 0 { #expect(events.contains("48:false")) }
+  }
+
   @Test func commandPreservesNativeModifierDeviceBitsAndReleaseFlags() throws {
     let source = try #require(CGEventSource(stateID: .privateState))
     let natural = try #require(CGEvent(keyboardEventSource: source, virtualKey: 55, keyDown: true))
