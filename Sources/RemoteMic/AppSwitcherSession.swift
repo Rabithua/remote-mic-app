@@ -80,7 +80,14 @@ final class AppSwitcherSession {
     }
     switch button {
     case .left, .right:
-      if pressAndRelease(button == .left ? 123 : 124) {
+      // Use the native forward/backward shortcuts, reusing the Tab path that
+      // opens the switcher, rather than synthesizing arrow keys.
+      let flags: CGEventFlags = button == .left ? [.maskCommand, .maskShift] : .maskCommand
+      let posted = pressAndRelease(48, flags: flags)
+      diagnosticLogger(
+        "APP_SWITCHER navigate direction=\(button.rawValue) method=\(button == .left ? "shift_tab" : "tab") posted=\(posted)"
+      )
+      if posted {
         resetIdleTimeout()
       } else {
         cancel()
@@ -103,9 +110,9 @@ final class AppSwitcherSession {
     finish(cancelled: true)
   }
 
-  private func pressAndRelease(_ keyCode: CGKeyCode) -> Bool {
-    let pressed = postKeyState(keyCode, true, .maskCommand)
-    let released = postKeyState(keyCode, false, .maskCommand)
+  private func pressAndRelease(_ keyCode: CGKeyCode, flags: CGEventFlags = .maskCommand) -> Bool {
+    let pressed = postKeyState(keyCode, true, flags)
+    let released = postKeyState(keyCode, false, flags)
     return pressed && released
   }
 
