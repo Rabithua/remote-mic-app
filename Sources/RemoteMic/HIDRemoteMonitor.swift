@@ -83,6 +83,8 @@ enum HIDDeviceMatchDecision: Equatable {
 final class HIDRemoteMonitor {
   private let settings: AppSettings
   private let eventSuppressor: KeyboardEventSuppressor
+  private let appSwitcher: AppSwitcherSession
+  private let appSwitcherOwner = UUID()
   private let ownsEventSuppressor: Bool
   private let scheduler: HIDRemoteScheduling
   private let runtimePermissions: () -> Bool
@@ -101,6 +103,7 @@ final class HIDRemoteMonitor {
   private var activeDeviceIsSeized = false
   private var activeUsages = Set<UInt16>()
   private var nativePassthroughUsages = Set<UInt16>()
+  private var appSwitcherConsumedUsages = Set<UInt16>()
   private var repeatTimers: [UInt16: HIDRemoteScheduledTask] = [:]
   private var nonRepeatablePressedButtons = Set<RemoteButton>()
   private var nonRepeatableReleaseTimers: [RemoteButton: HIDRemoteScheduledTask] = [:]
@@ -120,6 +123,7 @@ final class HIDRemoteMonitor {
     targetFingerprint: String? = nil,
     excludedFingerprints: @escaping () -> Set<String> = { [] },
     eventSuppressor: KeyboardEventSuppressor = KeyboardEventSuppressor(),
+    appSwitcher: AppSwitcherSession? = nil,
     ownsEventSuppressor: Bool = true,
     scheduler: HIDRemoteScheduling = DispatchHIDRemoteScheduler(),
     runtimePermissions: @escaping () -> Bool = {
@@ -145,6 +149,7 @@ final class HIDRemoteMonitor {
     self.targetFingerprint = targetFingerprint
     self.excludedFingerprints = excludedFingerprints
     self.eventSuppressor = eventSuppressor
+    self.appSwitcher = appSwitcher ?? AppSwitcherSession()
     self.ownsEventSuppressor = ownsEventSuppressor
     self.scheduler = scheduler
     self.runtimePermissions = runtimePermissions
@@ -457,6 +462,7 @@ final class HIDRemoteMonitor {
     }
     guard settings.customMappingEnabled else {
       diagnosticLogger("HID REPORT rejected reason=mapping_disabled")
+      releaseForDisabledMapping()
       return
     }
     guard
@@ -554,10 +560,12 @@ final class HIDRemoteMonitor {
   func handleSimulatedReport(reportID: UInt32, data: Data) {
     guard settings.customMappingEnabled else {
       diagnosticLogger("HID REPORT rejected reason=mapping_disabled source=simulated")
+      releaseForDisabledMapping()
       return
     }
     guard runtimePermissionsAreValid() else {
       diagnosticLogger("HID REPORT rejected reason=runtime_permission_revoked source=simulated")
+      releaseForRevokedPermissions()
       return
     }
     parseAndProcess(reportID: reportID, data: data, source: "simulated")
@@ -610,10 +618,19 @@ final class HIDRemoteMonitor {
       )
     }
     activeUsages = usages
-    onActiveButtons?(profileID, RemoteButton.buttons(for: usages))
+    let activeButtons = RemoteButton.buttons(for: usages)
+    appSwitcher.updatePressedButtons(activeButtons, owner: appSwitcherOwner)
+    onActiveButtons?(profileID, activeButtons)
 
     for usage in pressed.sorted() {
       guard let button = RemoteButton.usageMap[usage] else { continue }
+      if appSwitcher.isActive, appSwitcher.handlePress(button, owner: appSwitcherOwner) {
+        if !activeDeviceIsSeized {
+          eventSuppressor.arm(button: button, edge: .down)
+        }
+        appSwitcherConsumedUsages.insert(usage)
+        continue
+      }
       let preflightProfileID = profileID
       let preflightRecognizesDoubleClick =
         settings.configuredAction(
@@ -704,12 +721,14 @@ final class HIDRemoteMonitor {
 
     for usage in released {
       let usedNativePassthrough = nativePassthroughUsages.remove(usage) != nil
-      if !activeDeviceIsSeized, !usedNativePassthrough,
+      let usedAppSwitcher = appSwitcherConsumedUsages.remove(usage) != nil
+      if !activeDeviceIsSeized, !usedNativePassthrough || usedAppSwitcher,
         let button = RemoteButton.usageMap[usage]
       {
         eventSuppressor.arm(button: button, edge: .up)
       }
       repeatTimers.removeValue(forKey: usage)?.cancel()
+      if usedAppSwitcher { continue }
       if let button = RemoteButton.usageMap[usage] {
         scheduleNonRepeatableRelease(for: button)
         guard processGestureCommands(gestureRecognizer.release(button)) else { return }
@@ -910,6 +929,14 @@ final class HIDRemoteMonitor {
       repeatingEveryMilliseconds: interval
     ) { [weak self] in
       guard let self, self.activeUsages.contains(usage) else { return }
+      guard self.settings.customMappingEnabled else {
+        self.releaseForDisabledMapping()
+        return
+      }
+      if self.appSwitcher.isActive {
+        self.repeatTimers.removeValue(forKey: usage)?.cancel()
+        return
+      }
       if self.settings.hasSecondaryAction(for: button, profileID: self.profileID)
         || !Self.shouldRepeat(
           action: action,
@@ -987,16 +1014,34 @@ final class HIDRemoteMonitor {
     for button: RemoteButton,
     trigger: ButtonTrigger
   ) -> Bool {
+    guard settings.customMappingEnabled else {
+      releaseForDisabledMapping()
+      return false
+    }
     guard runtimePermissionsAreValid() else {
       releaseForRevokedPermissions()
       return false
     }
+    // New physical presses are routed before reaching this method. Any action
+    // arriving while a switcher is active is a previously scheduled gesture.
+    guard !appSwitcher.isActive else { return true }
     let configured = settings.configuredAction(
       for: button,
       trigger: trigger,
       profileID: profileID
     )
-    guard actionPerformer(button, trigger, configured) else {
+    let performed: Bool
+    if configured.action == .browseApps {
+      guard appSwitcher.canBegin(owner: appSwitcherOwner) else {
+        diagnosticLogger("HID APP_SWITCHER ignored reason=other_remote_busy")
+        return true
+      }
+      cancelPendingActionsForAppSwitcher()
+      performed = appSwitcher.begin(owner: appSwitcherOwner)
+    } else {
+      performed = actionPerformer(button, trigger, configured)
+    }
+    guard performed else {
       diagnosticLogger(
         "HID ACTION failed button=\(button.rawValue) trigger=\(trigger.rawValue) "
           + "action=\(configured.action.rawValue)"
@@ -1009,6 +1054,25 @@ final class HIDRemoteMonitor {
       "HID BUTTON button=\(button.rawValue) trigger=\(trigger.rawValue) action=\(configured.action.rawValue)"
     )
     return true
+  }
+
+  private func cancelPendingActionsForAppSwitcher() {
+    for timer in repeatTimers.values { timer.cancel() }
+    repeatTimers.removeAll()
+    for timer in nonRepeatableReleaseTimers.values { timer.cancel() }
+    nonRepeatableReleaseTimers.removeAll()
+    nonRepeatablePressedButtons.removeAll()
+    resetGestureRecognition()
+    appSwitcherConsumedUsages.formUnion(activeUsages)
+    // A held direction may have started in native passthrough mode. Prevent its
+    // native repeat from leaking into the session after Command is held.
+    if !activeDeviceIsSeized {
+      for usage in nativePassthroughUsages {
+        if let button = RemoteButton.usageMap[usage] {
+          eventSuppressor.arm(button: button, edge: .down)
+        }
+      }
+    }
   }
 
   private func resetGestureRecognition() {
@@ -1024,6 +1088,8 @@ final class HIDRemoteMonitor {
   }
 
   private func resetInputState() {
+    appSwitcher.cancel(owner: appSwitcherOwner)
+    appSwitcher.updatePressedButtons([], owner: appSwitcherOwner)
     if !activeDeviceIsSeized {
       for usage in activeUsages {
         if let button = RemoteButton.usageMap[usage] {
@@ -1036,6 +1102,7 @@ final class HIDRemoteMonitor {
     }
     repeatTimers.removeAll()
     nativePassthroughUsages.removeAll()
+    appSwitcherConsumedUsages.removeAll()
     for timer in nonRepeatableReleaseTimers.values {
       timer.cancel()
     }
@@ -1056,11 +1123,21 @@ final class HIDRemoteMonitor {
       repeatingEveryMilliseconds: HIDRemoteTiming.permissionPollMilliseconds
     ) { [weak self] in
       guard let self, self.manager != nil else { return }
+      guard self.settings.customMappingEnabled else {
+        self.releaseForDisabledMapping()
+        return
+      }
       if !self.runtimePermissionsAreValid() {
         self.releaseForRevokedPermissions()
       }
     }
     permissionMonitor = timer
+  }
+
+  private func releaseForDisabledMapping() {
+    stop()
+    updateStatus(LocalizedMessage("button_mapping.status.system_managed"))
+    diagnosticLogger("HID RELEASED mapping_disabled")
   }
 
   private func releaseForRevokedPermissions() {

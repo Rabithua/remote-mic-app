@@ -4,6 +4,7 @@
 "action.arrow_left" = "方向左";
 "action.arrow_right" = "方向右";
 "action.arrow_up" = "方向上";
+"action.browse_apps" = "选择应用（左右选择，确定切换）";
 "action.command_delete" = "Command-Delete";
 "action.context_menu" = "上下文菜单";
 "action.custom_shortcut" = "自定义快捷键";

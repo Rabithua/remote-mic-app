@@ -18,6 +18,7 @@ let package = Package(
         "AppLogger.swift",
         "AppRuntimeState.swift",
         "AppSettings.swift",
+        "AppSwitcherSession.swift",
         "AudioDriverManager.swift",
         "AudioOutput.swift",
         "BluetoothLifecycle.swift",

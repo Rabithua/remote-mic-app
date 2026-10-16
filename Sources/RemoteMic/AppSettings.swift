@@ -333,13 +333,23 @@ final class AppSettings {
         applicationProfileID: applicationProfileID(for: button, profileID: profileID)
       )
     }
+    let explicitBinding: ConfiguredButtonAction?
     if isSelected {
-      return secondaryButtonBindings[button]?[trigger] ?? .disabled
+      explicitBinding = secondaryButtonBindings[button]?[trigger]
+    } else {
+      guard let profileID,
+        let profile = remoteDeviceProfiles.first(where: { $0.id == profileID })
+      else { return .disabled }
+      explicitBinding = profile.mappings.parsedSecondaryButtonBindings[button]?[trigger]
     }
-    guard let profileID,
-      let profile = remoteDeviceProfiles.first(where: { $0.id == profileID })
-    else { return .disabled }
-    return profile.mappings.parsedSecondaryButtonBindings[button]?[trigger] ?? .disabled
+    if let explicitBinding { return explicitBinding }
+    // Supply the default without rewriting saved mappings or overriding an explicit Disabled.
+    if button == .tv, trigger == .longPress,
+      action(for: .tv, profileID: profileID) == .appSwitcher
+    {
+      return ConfiguredButtonAction(action: .browseApps, shortcut: nil)
+    }
+    return .disabled
   }
 
   var selectedRemoteProfile: RemoteDeviceProfile? {

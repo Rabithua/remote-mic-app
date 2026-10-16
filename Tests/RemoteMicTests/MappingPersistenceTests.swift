@@ -7,6 +7,134 @@ import Testing
 @Suite("Mapping persistence", .serialized)
 @MainActor
 struct MappingPersistenceTests {
+  @Test(arguments: [false, true])
+  func defaultTVLongPressBrowsesAppsWithoutRewritingFreshOrLegacySettings(legacy: Bool) throws {
+    let store = try TemporaryDefaults()
+    defer { store.remove() }
+    let savedBindings =
+      legacy
+      ? try JSONEncoder().encode(["tv": ButtonAction.appSwitcher]) : nil
+    if let savedBindings { store.defaults.set(savedBindings, forKey: "buttonBindings") }
+    let settings = AppSettings(defaults: store.defaults)
+
+    #expect(settings.configuredAction(for: .tv, trigger: .singleClick).action == .appSwitcher)
+    #expect(settings.configuredAction(for: .tv, trigger: .longPress).action == .browseApps)
+    #expect(settings.configuredAction(for: .tv, trigger: .doubleClick) == .disabled)
+    #expect(settings.hasSecondaryAction(for: .tv))
+    #expect(settings.secondaryButtonBindings[.tv]?[.longPress] == nil)
+    for button in RemoteButton.allCases where button != .tv {
+      #expect(settings.configuredAction(for: button, trigger: .longPress) == .disabled)
+      #expect(settings.hasSecondaryAction(for: button) == false)
+    }
+    #expect(store.defaults.data(forKey: "buttonBindings") == savedBindings)
+    #expect(store.defaults.object(forKey: "secondaryButtonBindings") == nil)
+  }
+
+  @Test(arguments: [ButtonAction.disabled, .commandCopy, .customShortcut, .browseApps])
+  func customTVSingleClickDoesNotGainAnImplicitLongPress(action: ButtonAction) throws {
+    let store = try TemporaryDefaults()
+    defer { store.remove() }
+    let settings = AppSettings(defaults: store.defaults)
+    settings.setAction(action, for: .tv)
+
+    let restored = AppSettings(defaults: store.defaults)
+    #expect(restored.configuredAction(for: .tv, trigger: .singleClick).action == action)
+    #expect(restored.configuredAction(for: .tv, trigger: .longPress) == .disabled)
+    #expect(restored.hasSecondaryAction(for: .tv) == false)
+  }
+
+  @Test(arguments: [ButtonAction.disabled, .commandPaste, .browseApps])
+  func explicitTVLongPressSurvivesReloadIncludingDisabled(action: ButtonAction) throws {
+    let store = try TemporaryDefaults()
+    defer { store.remove() }
+    let settings = AppSettings(defaults: store.defaults)
+    settings.setAction(action, for: .tv, trigger: .longPress)
+
+    let restored = AppSettings(defaults: store.defaults)
+    #expect(restored.configuredAction(for: .tv, trigger: .longPress).action == action)
+    #expect(restored.configuredAction(for: .tv, trigger: .singleClick).action == .appSwitcher)
+    #expect(restored.hasSecondaryAction(for: .tv) == (action != .disabled))
+    #expect(restored.secondaryButtonBindings[.tv]?[.longPress]?.action == action)
+  }
+
+  @Test func customTVDoubleClickCoexistsWithTheImplicitLongPress() throws {
+    let store = try TemporaryDefaults()
+    defer { store.remove() }
+    let settings = AppSettings(defaults: store.defaults)
+    settings.setAction(.commandCopy, for: .tv, trigger: .doubleClick)
+
+    let restored = AppSettings(defaults: store.defaults)
+    #expect(restored.configuredAction(for: .tv, trigger: .doubleClick).action == .commandCopy)
+    #expect(restored.configuredAction(for: .tv, trigger: .longPress).action == .browseApps)
+    #expect(restored.secondaryButtonBindings[.tv]?[.longPress] == nil)
+  }
+
+  @Test func nonselectedProfileUsesItsOwnTVSingleClickForTheImplicitLongPress() throws {
+    let store = try TemporaryDefaults()
+    defer { store.remove() }
+    let settings = AppSettings(defaults: store.defaults)
+    let first = settings.registerBluetoothRemote(identifier: UUID())
+    let second = settings.registerBluetoothRemote(identifier: UUID())
+    settings.selectRemoteProfile(second)
+    settings.setAction(.commandCopy, for: .tv)
+    let savedProfiles = try JSONDecoder().decode(
+      [RemoteDeviceProfile].self,
+      from: #require(store.defaults.data(forKey: "remoteDeviceProfiles"))
+    )
+
+    let restored = AppSettings(defaults: store.defaults)
+    let profileDataAfterLoading = try #require(
+      store.defaults.data(forKey: "remoteDeviceProfiles"))
+    let loadedProfiles = try JSONDecoder().decode(
+      [RemoteDeviceProfile].self, from: profileDataAfterLoading)
+    #expect(loadedProfiles == savedProfiles)
+    #expect(restored.selectedRemoteProfileID == second)
+    #expect(
+      restored.configuredAction(for: .tv, trigger: .longPress, profileID: first).action
+        == .browseApps)
+    #expect(restored.hasSecondaryAction(for: .tv, profileID: first))
+    #expect(
+      restored.configuredAction(for: .tv, trigger: .longPress, profileID: second) == .disabled)
+    #expect(restored.hasSecondaryAction(for: .tv, profileID: second) == false)
+    #expect(
+      restored.configuredAction(for: .tv, trigger: .longPress, profileID: UUID()) == .disabled)
+    #expect(store.defaults.data(forKey: "remoteDeviceProfiles") == profileDataAfterLoading)
+  }
+
+  @Test func disablingTheDefaultAndCustomizingAnotherRemoteKeepsProfilesIsolated() throws {
+    let store = try TemporaryDefaults()
+    defer { store.remove() }
+    let settings = AppSettings(defaults: store.defaults)
+    let first = settings.registerBluetoothRemote(identifier: UUID())
+    let second = settings.registerBluetoothRemote(identifier: UUID())
+    settings.setAction(.disabled, for: .tv, trigger: .longPress)
+    #expect(
+      settings.configuredAction(for: .tv, trigger: .longPress, profileID: second).action
+        == .browseApps)
+    settings.selectRemoteProfile(second)
+    settings.setAction(.commandPaste, for: .tv, trigger: .longPress)
+
+    let restored = AppSettings(defaults: store.defaults)
+    #expect(restored.configuredAction(for: .tv, trigger: .longPress, profileID: first) == .disabled)
+    #expect(restored.hasSecondaryAction(for: .tv, profileID: first) == false)
+    #expect(
+      restored.configuredAction(for: .tv, trigger: .longPress, profileID: second).action
+        == .commandPaste)
+    for profileID in [first, second] {
+      #expect(
+        restored.configuredAction(for: .tv, trigger: .singleClick, profileID: profileID).action
+          == .appSwitcher)
+    }
+  }
+
+  @Test func browseAppsIsAvailableAsANonRepeatingSystemAction() {
+    #expect(ButtonAction.browseApps.category == .systemAndMedia)
+    #expect(ButtonAction.browseApps.allowsRepeat == false)
+    #expect(
+      ButtonAction.pickerActions(installedBundleIdentifiers: [], current: .appSwitcher).contains(
+        .browseApps))
+  }
+
   @Test func singleDoubleAndLongPressChangesPersistImmediately() throws {
     let store = try TemporaryDefaults()
     defer { store.remove() }
