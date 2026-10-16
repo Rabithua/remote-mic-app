@@ -4,7 +4,7 @@
 "action.arrow_left" = "Arrow Left";
 "action.arrow_right" = "Arrow Right";
 "action.arrow_up" = "Arrow Up";
-"action.browse_apps" = "Browse Apps (←/→, OK to switch)";
+"action.browse_apps" = "Hold to Cycle Apps (release to switch)";
 "action.command_delete" = "Command-Delete";
 "action.context_menu" = "Context Menu";
 "action.custom_shortcut" = "Custom Shortcut";

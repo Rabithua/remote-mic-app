@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// Owns the synthetic Command key for one remote's latched system app switcher.
+/// Holds Command only while the initiating remote button is physically held.
 @MainActor
 final class AppSwitcherSession {
   private let scheduler: HIDRemoteScheduling
@@ -10,23 +10,28 @@ final class AppSwitcherSession {
   private let idleTimeoutMilliseconds: UInt64
   private let diagnosticLogger: (String) -> Void
   private var owner: UUID?
+  private var initiatingButton: RemoteButton?
   private var pressedButtons: [UUID: Set<RemoteButton>] = [:]
+  private var repeatTask: HIDRemoteScheduledTask?
+  private var tabReleaseTask: HIDRemoteScheduledTask?
   private var idleTask: HIDRemoteScheduledTask?
-  private var timeoutGeneration: UInt64 = 0
+  private var tabIsDown = false
+  private var generation: UInt64 = 0
 
+  static let repeatMilliseconds: UInt64 = 350
+  static let keyPressMilliseconds: UInt64 = 20
   var isActive: Bool { owner != nil }
 
   init(
     scheduler: HIDRemoteScheduling = DispatchHIDRemoteScheduler(),
     accessibilityTrusted: @escaping () -> Bool = { KeyboardInjector.isAccessibilityTrusted },
-    postKeyState: @escaping (CGKeyCode, Bool, CGEventFlags) -> Bool =
-      KeyboardInjector.postAppSwitcherKeyState,
+    postKeyState: ((CGKeyCode, Bool, CGEventFlags) -> Bool)? = nil,
     idleTimeoutMilliseconds: UInt64 = 30_000,
     diagnosticLogger: @escaping (String) -> Void = AppLogger.shared.write
   ) {
     self.scheduler = scheduler
     self.accessibilityTrusted = accessibilityTrusted
-    self.postKeyState = postKeyState
+    self.postKeyState = postKeyState ?? KeyboardInjector.makeAppSwitcherKeyPoster()
     self.idleTimeoutMilliseconds = idleTimeoutMilliseconds
     self.diagnosticLogger = diagnosticLogger
   }
@@ -38,13 +43,11 @@ final class AppSwitcherSession {
   }
 
   func canBegin(owner: UUID) -> Bool {
-    // A native held key on another remote can repeat without another HID edge.
-    // Do not hold Command until that input has been released.
     pressedButtons.keys.allSatisfy { $0 == owner }
   }
 
   @discardableResult
-  func begin(owner: UUID) -> Bool {
+  func begin(owner: UUID, button: RemoteButton = .tv) -> Bool {
     guard canBegin(owner: owner) else {
       diagnosticLogger("APP_SWITCHER rejected reason=another_remote_held")
       return false
@@ -52,22 +55,37 @@ final class AppSwitcherSession {
     cancel()
     guard accessibilityTrusted() else { return false }
     guard postKeyState(55, true, .maskCommand) else {
-      // Best-effort release is deliberately not gated by permission checks.
       _ = postKeyState(55, false, [])
       return false
     }
     self.owner = owner
-    guard pressAndRelease(48) else {
-      cancel()
-      return false
+    initiatingButton = button
+    generation &+= 1
+    let token = generation
+    guard pressTab() else { return false }
+    repeatTask = scheduler.schedule(
+      afterMilliseconds: Self.repeatMilliseconds,
+      repeatingEveryMilliseconds: Self.repeatMilliseconds
+    ) { [weak self] in
+      guard let self, self.isActive, self.generation == token else { return }
+      guard self.accessibilityTrusted() else {
+        self.cancel()
+        return
+      }
+      if self.pressTab() { self.diagnosticLogger("APP_SWITCHER advanced method=held_tab") }
     }
-    resetIdleTimeout()
-    diagnosticLogger("APP_SWITCHER opened")
+    // A lost HID release must not leave a modifier held forever. Repeats do not
+    // extend this deadline; only a fresh physical press can start a new session.
+    idleTask = scheduler.schedule(
+      afterMilliseconds: idleTimeoutMilliseconds, repeatingEveryMilliseconds: nil
+    ) { [weak self] in
+      guard let self, self.generation == token else { return }
+      self.cancel()
+    }
+    diagnosticLogger("APP_SWITCHER opened mode=hold button=\(button.rawValue)")
     return true
   }
 
-  /// Called before normal mappings or native passthrough on every physical press.
-  /// Unrelated input first cancels this session, so it cannot inherit our Command.
   func handlePress(_ button: RemoteButton, owner: UUID) -> Bool {
     guard let currentOwner = self.owner else { return false }
     guard accessibilityTrusted() else {
@@ -78,30 +96,20 @@ final class AppSwitcherSession {
       cancel()
       return false
     }
-    switch button {
-    case .left, .right:
-      // Use the native forward/backward shortcuts, reusing the Tab path that
-      // opens the switcher, rather than synthesizing arrow keys.
-      let flags: CGEventFlags = button == .left ? [.maskCommand, .maskShift] : .maskCommand
-      let posted = pressAndRelease(48, flags: flags)
-      diagnosticLogger(
-        "APP_SWITCHER navigate direction=\(button.rawValue) method=\(button == .left ? "shift_tab" : "tab") posted=\(posted)"
-      )
-      if posted {
-        resetIdleTimeout()
-      } else {
-        cancel()
-      }
-    case .ok:
-      finish(cancelled: false)
-    case .back:
+    if button == initiatingButton { return true }
+    if button == .back {
       cancel()
-    case .tv:
-      resetIdleTimeout()
-    default:
-      cancel()
-      return false
+      return true
     }
+    // Cancel before an unrelated mapping executes, so it cannot inherit Command.
+    cancel()
+    return false
+  }
+
+  @discardableResult
+  func handleRelease(_ button: RemoteButton, owner: UUID) -> Bool {
+    guard self.owner == owner, initiatingButton == button else { return false }
+    finish(cancelled: !accessibilityTrusted())
     return true
   }
 
@@ -110,32 +118,45 @@ final class AppSwitcherSession {
     finish(cancelled: true)
   }
 
-  private func pressAndRelease(_ keyCode: CGKeyCode, flags: CGEventFlags = .maskCommand) -> Bool {
-    let pressed = postKeyState(keyCode, true, flags)
-    let released = postKeyState(keyCode, false, flags)
-    return pressed && released
+  private func pressTab() -> Bool {
+    guard !tabIsDown else { return true }
+    tabIsDown = true
+    guard postKeyState(48, true, .maskCommand) else {
+      cancel()
+      return false
+    }
+    let token = generation
+    tabReleaseTask = scheduler.schedule(
+      afterMilliseconds: Self.keyPressMilliseconds, repeatingEveryMilliseconds: nil
+    ) { [weak self] in
+      guard let self, self.isActive, self.generation == token else { return }
+      self.tabReleaseTask = nil
+      guard self.postKeyState(48, false, .maskCommand) else {
+        self.cancel()
+        return
+      }
+      self.tabIsDown = false
+    }
+    return true
   }
 
   private func finish(cancelled: Bool) {
+    repeatTask?.cancel()
+    tabReleaseTask?.cancel()
     idleTask?.cancel()
+    repeatTask = nil
+    tabReleaseTask = nil
     idleTask = nil
-    timeoutGeneration &+= 1
+    generation &+= 1
     owner = nil
-    if cancelled { _ = pressAndRelease(53) }
+    initiatingButton = nil
+    if tabIsDown { _ = postKeyState(48, false, .maskCommand) }
+    tabIsDown = false
+    if cancelled {
+      _ = postKeyState(53, true, .maskCommand)
+      _ = postKeyState(53, false, .maskCommand)
+    }
     _ = postKeyState(55, false, [])
     diagnosticLogger("APP_SWITCHER \(cancelled ? "cancelled" : "committed")")
-  }
-
-  private func resetIdleTimeout() {
-    idleTask?.cancel()
-    timeoutGeneration &+= 1
-    let generation = timeoutGeneration
-    idleTask = scheduler.schedule(
-      afterMilliseconds: idleTimeoutMilliseconds,
-      repeatingEveryMilliseconds: nil
-    ) { [weak self] in
-      guard let self, self.timeoutGeneration == generation else { return }
-      self.cancel()
-    }
   }
 }

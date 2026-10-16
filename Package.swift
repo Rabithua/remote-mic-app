@@ -64,6 +64,7 @@ let package = Package(
         "ShortcutCaptureMonitor.swift",
         "SystemBluetoothPairingCoordinator.swift",
         "TestTone.swift",
+        "TVHoldVerification.swift",
         "VoiceFnTapSessionController.swift",
         "VoiceInputDestinationCoordinator.swift",
         "XiaomiBluetoothBridge.swift",

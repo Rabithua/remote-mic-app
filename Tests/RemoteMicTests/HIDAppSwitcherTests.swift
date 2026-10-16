@@ -6,7 +6,7 @@ import Testing
 
 @MainActor
 struct HIDAppSwitcherTests {
-  @Test func shortTVKeepsItsSingleClickActionWithoutOpeningALatchedSession() throws {
+  @Test func shortTVKeepsItsSingleClickActionWithoutHoldingCommand() throws {
     let harness = try HIDAppSwitcherHarness()
     defer { harness.close() }
     let monitor = harness.makeMonitor(fingerprint: "short-tv-owner")
@@ -21,10 +21,10 @@ struct HIDAppSwitcherTests {
     #expect(harness.output.keyDownCodes.isEmpty)
   }
 
-  @Test func longTVLatchesUntilOKAndRepeatedReportsDoNotNavigateTwice() throws {
+  @Test func holdingTVRepeatsTabAndReleasingItCommitsExactlyOnce() throws {
     let harness = try HIDAppSwitcherHarness()
     defer { harness.close() }
-    let monitor = harness.makeMonitor(fingerprint: "switcher-owner")
+    let monitor = harness.makeMonitor(fingerprint: "held-tv-owner")
 
     harness.report([.tv], to: monitor)
     harness.scheduler.advance(by: 549)
@@ -33,103 +33,80 @@ struct HIDAppSwitcherTests {
     harness.report([.tv], to: monitor)
     harness.scheduler.advance(by: 1)
     #expect(harness.session.isActive)
-    let openedEvents = harness.output.events
     #expect(
-      openedEvents == [
-        .key(55, true, .maskCommand),
-        .key(48, true, .maskCommand),
-        .key(48, false, .maskCommand),
+      harness.output.events == [
+        .key(55, true, .maskCommand), .key(48, true, .maskCommand),
       ])
-    harness.report([], to: monitor)
-    #expect(harness.session.isActive)
-    #expect(harness.output.events == openedEvents)
+    harness.report([.tv], to: monitor)
+    harness.scheduler.advance(by: 20)
+    #expect(harness.output.events.last == .key(48, false, .maskCommand))
+    harness.scheduler.advance(by: 330)
+    #expect(harness.output.events.last == .key(48, true, .maskCommand))
+    #expect(harness.output.keyDownCodes.filter { $0 == 48 }.count == 2)
+    harness.scheduler.advance(by: 20)
+    #expect(harness.output.events.last == .key(48, false, .maskCommand))
 
-    harness.report([.left], to: monitor)
-    harness.report([.left], to: monitor)
-    harness.scheduler.advance(by: 600)
-    #expect(
-      harness.output.events.filter { $0 == .key(48, true, [.maskCommand, .maskShift]) }.count
-        == 1)
     harness.report([], to: monitor)
-    harness.report([.right], to: monitor)
-    harness.report([], to: monitor)
-    #expect(
-      harness.output.events.dropFirst(openedEvents.count) == [
-        .key(48, true, [.maskCommand, .maskShift]),
-        .key(48, false, [.maskCommand, .maskShift]),
-        .key(48, true, .maskCommand),
-        .key(48, false, .maskCommand),
-      ])
-    harness.report([.ok], to: monitor)
     harness.report([], to: monitor)
 
     #expect(harness.session.isActive == false)
     #expect(harness.output.ordinaryActions.isEmpty)
     #expect(harness.output.commandReleaseCount == 1)
+    #expect(harness.output.events.last == .key(55, false, []))
+    #expect(harness.output.keyDownCodes.contains(53) == false)
+    let events = harness.output.events
+    harness.scheduler.advance(by: 40_000)
+    #expect(harness.output.events == events)
   }
 
-  @Test func modalPressesIgnoreConfiguredGesturesAndSuppressNativeEdges() throws {
+  @Test func nativeTVDownAndUpAreSuppressedWhileReleaseCommitsPendingTab() throws {
     let harness = try HIDAppSwitcherHarness()
     defer { harness.close() }
     let suppressor = KeyboardEventSuppressor()
     let monitor = harness.makeMonitor(
-      fingerprint: "fallback-owner", isSeized: false, suppressor: suppressor)
-    harness.settings.setAction(.commandCopy, for: .left, trigger: .doubleClick)
-    harness.settings.setAction(.commandPaste, for: .left, trigger: .longPress)
-    harness.settings.setAction(.commandCopy, for: .ok, trigger: .doubleClick)
-    harness.settings.setAction(.commandPaste, for: .ok, trigger: .longPress)
-    harness.openSwitcher(using: monitor)
+      fingerprint: "fallback-tv-owner", isSeized: false, suppressor: suppressor)
 
-    harness.report([.left], to: monitor)
-    let leftDown = try #require(harness.keyEvent(code: 123, isDown: true))
-    #expect(suppressor.handle(type: .keyDown, event: leftDown))
-    harness.scheduler.advance(by: 700)
+    harness.report([.tv], to: monitor)
+    let tvDown = try #require(harness.keyEvent(code: 10, isDown: true))
+    #expect(suppressor.handle(type: .keyDown, event: tvDown))
+    harness.scheduler.advance(by: 550)
+    #expect(harness.session.isActive)
     harness.report([], to: monitor)
-    let leftUp = try #require(harness.keyEvent(code: 123, isDown: false))
-    #expect(suppressor.handle(type: .keyUp, event: leftUp))
-    harness.report([.right], to: monitor)
-    let rightDown = try #require(harness.keyEvent(code: 124, isDown: true))
-    #expect(suppressor.handle(type: .keyDown, event: rightDown))
-    harness.report([], to: monitor)
-    let rightUp = try #require(harness.keyEvent(code: 124, isDown: false))
-    #expect(suppressor.handle(type: .keyUp, event: rightUp))
-    harness.report([.ok], to: monitor)
-    let okDown = try #require(harness.keyEvent(code: 36, isDown: true))
-    #expect(suppressor.handle(type: .keyDown, event: okDown))
-    harness.report([], to: monitor)
-    let okUp = try #require(harness.keyEvent(code: 36, isDown: false))
-    #expect(suppressor.handle(type: .keyUp, event: okUp))
-    harness.scheduler.advance(by: 1_000)
+    let tvUp = try #require(harness.keyEvent(code: 10, isDown: false))
+    #expect(suppressor.handle(type: .keyUp, event: tvUp))
 
     #expect(harness.session.isActive == false)
-    #expect(harness.output.ordinaryActions.isEmpty)
     #expect(
-      harness.output.events.filter { $0 == .key(48, true, [.maskCommand, .maskShift]) }.count
-        == 1)
-    // Command-Tab opens once and then advances once on the right press.
-    #expect(harness.output.events.filter { $0 == .key(48, true, .maskCommand) }.count == 2)
-    #expect(harness.output.keyDownCodes.contains(123) == false)
-    #expect(harness.output.keyDownCodes.contains(124) == false)
+      harness.output.events.suffix(2) == [
+        .key(48, false, .maskCommand), .key(55, false, []),
+      ])
+    #expect(harness.output.ordinaryActions.isEmpty)
+    #expect(harness.output.keyDownCodes.contains(53) == false)
   }
 
-  @Test func anotherButtonCancelsBeforeItsOrdinaryMappingExecutes() throws {
+  @Test(arguments: [RemoteButton.left, .right, .ok, .menu])
+  func otherButtonsCancelBeforeTheirOrdinaryMappings(_ button: RemoteButton) throws {
     let harness = try HIDAppSwitcherHarness()
     defer { harness.close() }
     let monitor = harness.makeMonitor(fingerprint: "normal-action-owner")
-    harness.settings.setAction(.commandCopy, for: .menu)
+    harness.settings.setAction(.commandCopy, for: button)
+    harness.settings.setAction(.disabled, for: button, trigger: .doubleClick)
+    harness.settings.setAction(.disabled, for: button, trigger: .longPress)
     harness.openSwitcher(using: monitor)
 
-    harness.report([.menu], to: monitor)
+    // Synthetic overlap tests command cleanup without requiring hardware rollover.
+    harness.report([.tv, button], to: monitor)
     harness.report([], to: monitor)
 
     #expect(harness.session.isActive == false)
     #expect(harness.output.ordinaryActions == [.commandCopy])
+    #expect(harness.output.keyDownCodes.contains(53))
     let releaseIndex = try #require(harness.output.events.firstIndex(of: .key(55, false, [])))
     let actionIndex = try #require(harness.output.events.firstIndex(of: .action(.commandCopy)))
     #expect(releaseIndex < actionIndex)
   }
 
-  @Test func backCancelsWithoutDeletingAndAllNormalMappingsReturnAfterward() throws {
+  @Test func backCancelsWithoutDeletingAndNormalMappingsReturnAfterward() throws {
     let harness = try HIDAppSwitcherHarness()
     defer { harness.close() }
     let monitor = harness.makeMonitor(fingerprint: "restored-mappings-owner")
@@ -139,7 +116,7 @@ struct HIDAppSwitcherTests {
     harness.settings.setAction(.deleteBackward, for: .back)
     harness.openSwitcher(using: monitor)
 
-    harness.report([.back], to: monitor)
+    harness.report([.tv, .back], to: monitor)
     harness.report([], to: monitor)
     harness.scheduler.advance(by: 1_000)
     #expect(harness.session.isActive == false)
@@ -157,7 +134,7 @@ struct HIDAppSwitcherTests {
       ])
   }
 
-  @Test func otherRemoteCancelsBeforeMappingAndCannotCancelNewOwnersOnStop() throws {
+  @Test func otherRemoteCancelsBeforeMappingAndCannotCancelNewOwnerOnStop() throws {
     let harness = try HIDAppSwitcherHarness()
     defer { harness.close() }
     let first = harness.makeMonitor(fingerprint: "first-owner")
@@ -166,6 +143,7 @@ struct HIDAppSwitcherTests {
 
     harness.report([.ok], to: second)
     harness.report([], to: second)
+    harness.report([], to: first)
     #expect(harness.session.isActive == false)
     #expect(harness.output.ordinaryActions == [.returnKey])
     let releaseIndex = try #require(harness.output.events.firstIndex(of: .key(55, false, [])))
@@ -179,7 +157,7 @@ struct HIDAppSwitcherTests {
     #expect(harness.session.isActive == false)
   }
 
-  @Test func anotherRemotesHeldNativeDirectionPreventsOpeningUntilItIsReleased() throws {
+  @Test func anotherRemotesHeldNativeDirectionBlocksOpeningUntilReleased() throws {
     let harness = try HIDAppSwitcherHarness()
     defer { harness.close() }
     let owner = harness.makeMonitor(fingerprint: "waiting-owner")
@@ -193,6 +171,7 @@ struct HIDAppSwitcherTests {
     harness.openSwitcher(using: owner)
     #expect(harness.session.isActive == false)
     #expect(harness.output.events.isEmpty)
+    harness.report([], to: owner)
 
     harness.report([], to: other)
     let up = try #require(harness.keyEvent(code: 123, isDown: false))
@@ -201,6 +180,8 @@ struct HIDAppSwitcherTests {
     #expect(harness.session.isActive)
     #expect(harness.output.keyDownCodes.filter { $0 == 55 }.count == 1)
     #expect(harness.output.ordinaryActions.isEmpty)
+    harness.report([], to: owner)
+    #expect(harness.session.isActive == false)
   }
 
   @Test func openingCancelsHeldRepeatsAndPendingGesturesWithoutReleaseActions() throws {
@@ -212,7 +193,6 @@ struct HIDAppSwitcherTests {
 
     harness.report([.tv], to: monitor)
     harness.scheduler.advance(by: 100)
-    // Synthetic multi-usage reports exercise state cleanup, not hardware rollover.
     harness.report([.tv, .home, .volumeUp], to: monitor)
     harness.scheduler.advance(by: 450)
     #expect(harness.session.isActive)
@@ -224,10 +204,12 @@ struct HIDAppSwitcherTests {
     #expect(harness.output.ordinaryActions == actionsAtOpening)
     #expect(harness.output.ordinaryActions.contains(.commandCopy) == false)
     #expect(harness.output.ordinaryActions.contains(.commandPaste) == false)
+    #expect(harness.session.isActive == false)
+    #expect(harness.output.keyDownCodes.contains(53) == false)
   }
 
   @Test(arguments: HIDAppSwitcherCleanup.allCases)
-  func cleanupReleasesTheLatchedCommand(_ cleanup: HIDAppSwitcherCleanup) throws {
+  func cleanupCancelsInsteadOfCommitting(_ cleanup: HIDAppSwitcherCleanup) throws {
     let harness = try HIDAppSwitcherHarness()
     defer { harness.close() }
     let monitor = harness.makeMonitor(fingerprint: "cleanup-owner")
@@ -238,15 +220,69 @@ struct HIDAppSwitcherTests {
     case .disconnect: monitor.disconnectSimulatedDevice()
     case .permission:
       harness.output.permissionsGranted = false
-      harness.report([.left], to: monitor)
+      harness.report([.tv], to: monitor)
     case .mappingDisabled:
       harness.settings.customMappingEnabled = false
-      harness.report([.left], to: monitor)
+      harness.report([.tv], to: monitor)
     }
 
     #expect(harness.session.isActive == false)
     #expect(harness.output.commandReleaseCount == 1)
     #expect(harness.output.ordinaryActions.isEmpty)
+    #expect(
+      harness.output.events.suffix(4) == [
+        .key(48, false, .maskCommand), .key(53, true, .maskCommand),
+        .key(53, false, .maskCommand), .key(55, false, []),
+      ])
+    let events = harness.output.events
+    harness.scheduler.advance(by: 40_000)
+    #expect(harness.output.events == events)
+  }
+
+  @Test(arguments: [ButtonTrigger.singleClick, .doubleClick])
+  func browseActionAfterTheButtonReleaseFallsBackToOneNormalSwitch(
+    _ trigger: ButtonTrigger
+  ) throws {
+    let harness = try HIDAppSwitcherHarness()
+    defer { harness.close() }
+    let monitor = harness.makeMonitor(fingerprint: "released-action-owner")
+    harness.settings.setAction(.disabled, for: .tv, trigger: .longPress)
+    if trigger == .singleClick {
+      harness.settings.setAction(.browseApps, for: .tv)
+      harness.settings.setAction(.commandCopy, for: .tv, trigger: .doubleClick)
+    } else {
+      harness.settings.setAction(.browseApps, for: .tv, trigger: .doubleClick)
+    }
+
+    harness.report([.tv], to: monitor)
+    harness.report([], to: monitor)
+    if trigger == .doubleClick {
+      harness.scheduler.advance(by: 100)
+      harness.report([.tv], to: monitor)
+      harness.report([], to: monitor)
+    }
+    harness.scheduler.advance(by: 1_000)
+
+    #expect(harness.session.isActive == false)
+    #expect(harness.output.ordinaryActions == [.appSwitcher])
+    #expect(harness.output.keyDownCodes.isEmpty)
+  }
+
+  @Test func browseActionOnAnotherHeldButtonCommitsOnThatButtonsRelease() throws {
+    let harness = try HIDAppSwitcherHarness()
+    defer { harness.close() }
+    let monitor = harness.makeMonitor(fingerprint: "home-initiator-owner")
+    harness.settings.setAction(.commandCopy, for: .home)
+    harness.settings.setAction(.browseApps, for: .home, trigger: .longPress)
+
+    harness.report([.home], to: monitor)
+    harness.scheduler.advance(by: 550)
+    #expect(harness.session.isActive)
+    harness.report([], to: monitor)
+    #expect(harness.session.isActive == false)
+    #expect(harness.output.commandReleaseCount == 1)
+    #expect(harness.output.ordinaryActions.isEmpty)
+    #expect(harness.output.keyDownCodes.contains(53) == false)
   }
 
   @Test func aCustomTVLongPressAndOrdinaryDirectionPassthroughRemainIntact() throws {
@@ -372,7 +408,6 @@ private final class HIDAppSwitcherHarness {
   func openSwitcher(using monitor: HIDRemoteMonitor) {
     report([.tv], to: monitor)
     scheduler.advance(by: 550)
-    report([], to: monitor)
   }
 
   func keyEvent(code: CGKeyCode, isDown: Bool) -> CGEvent? {
