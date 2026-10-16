@@ -216,6 +216,10 @@
 "device_setup.remote.title" = "Connect a Xiaomi remote";
 "device_setup.remote.pair" = "Pair Remote…";
 "device_setup.remote.scan" = "Search Again";
+"device_setup.remote.resume" = "Continue Connecting";
+"device_setup.remote.system_pairing" = "Waiting for system pairing";
+"device_setup.remote.system_pairing_hint" = "Automatic connections are paused. Pair MI RC in system Bluetooth, then click Continue Connecting here.";
+"device_setup.remote.open_settings_failed" = "Could not open system Bluetooth settings. Automatic connections have resumed.";
 "device_setup.remote.pairing_hint" = "Connect MI RC or the Xiaomi remote in system Bluetooth settings. For 2 Pro, hold Home and Menu together to pair; check the manual for other models. Disconnect the old Mac before switching computers.";
 "device_setup.remote.timeout" = "The remote was found, but the connection timed out. Disconnect the old Mac and enter pairing mode again.";
 "device_setup.remote.connection_failed" = "Could not connect. Check pairing in system Bluetooth settings; remove the old pairing and reconnect if needed.";
@@ -278,6 +282,15 @@
 "shortcut.standalone_modifier.right_option" = "Right Option";
 "shortcut.standalone_modifier.right_shift" = "Right Shift";
 "trigger.double_click" = "Double-click";
+"main_menu.file" = "File";
+"main_menu.close_window" = "Close Window";
+"main_menu.edit" = "Edit";
+"main_menu.undo" = "Undo";
+"main_menu.redo" = "Redo";
+"main_menu.cut" = "Cut";
+"main_menu.copy" = "Copy";
+"main_menu.paste" = "Paste";
+"main_menu.select_all" = "Select All";
 "trigger.long_press" = "Long-press";
 "trigger.single_click" = "Single-click";
 "voice_button.status.fn_enabled" = "The remote voice button is mapped to Fn in hardware";

@@ -17,6 +17,19 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
   let settings: AppSettings
   let state: AppRuntimeState
   let audioDriver = AudioDriverManager()
+  lazy var systemPairing = SystemBluetoothPairingCoordinator(
+    suspendConnections: { [weak self] in self?.suspendForSystemPairing() },
+    resumeConnections: { [weak self] in
+      self?.startBluetoothConnections()
+      self?.applyHIDSettings()
+    },
+    openSettings: {
+      guard let url = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings") else {
+        return false
+      }
+      return NSWorkspace.shared.open(url)
+    }
+  )
 
   private let audioOutput = VirtualAudioOutput()
   private let voiceFunctionMapper = RemoteVoiceFunctionMapper()
@@ -147,6 +160,10 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
   func reconnect() {
     guard started else { return }
     state.lastConnectionIssue = nil
+    if systemPairing.isActive {
+      systemPairing.resume()
+      return
+    }
     if bluetoothBridges.isEmpty, discoveryBluetoothBridge == nil {
       startBluetoothConnections()
       return
@@ -165,7 +182,7 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
   }
 
   func refreshRemoteDiscovery() {
-    guard started else { return }
+    guard started, !systemPairing.isActive else { return }
     if discoveryBluetoothBridge == nil {
       startBluetoothDiscoveryIfNeeded()
     } else {
@@ -233,6 +250,7 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
     guard !systemAudioSuspensionState.isSuspended else { return }
     refreshAudioDevices()
     applyAudioSettings(reason: "system_\(event.rawValue)")
+    guard !systemPairing.isActive else { return }
     for bridge in bluetoothBridges.values {
       bridge.reconnectNow()
     }
@@ -277,6 +295,7 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
   }
 
   func applyHIDSettings() {
+    guard !systemPairing.isActive else { return }
     let snapshot = HIDPermissionSnapshot.current
     appliedHIDPermissionSnapshot = snapshot
 
@@ -338,17 +357,37 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
   }
 
   func requestBluetoothPermission() {
-    reconnect()
+    if !systemPairing.isActive { reconnect() }
     if CBManager.authorization == .denied || CBManager.authorization == .restricted {
       openPrivacyPane("Privacy_Bluetooth")
     }
   }
 
   func openBluetoothPairing() {
-    refreshRemoteDiscovery()
-    if let url = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings") {
-      NSWorkspace.shared.open(url)
+    if !systemPairing.begin() {
+      state.lastConnectionIssue = LocalizedMessage("device_setup.remote.open_settings_failed")
     }
+  }
+
+  private func suspendForSystemPairing() {
+    for bridge in bluetoothBridges.values { bridge.stop() }
+    discoveryBluetoothBridge?.stop()
+    bluetoothBridges.removeAll()
+    bluetoothBridgeStates.removeAll()
+    discoveryBluetoothBridge = nil
+    activeBluetoothVoiceDeviceIdentifier = nil
+    bluetoothVoiceActive = false
+    endVoiceSessionIfNeeded(flushAudio: false)
+    voiceFnTapSession.suspend()
+    stopHIDMonitors()
+    voiceFunctionMapper.restore()
+    state.isConnected = false
+    state.connectedRemoteProfileIDs.removeAll()
+    state.remoteBatteryLevels.removeAll()
+    state.remotePowerStates.removeAll()
+    state.connectionStatus = LocalizedMessage("device_setup.remote.system_pairing")
+    state.lastConnectionIssue = nil
+    AppLogger.shared.write("BLE SYSTEM_PAIRING automatic_connections_paused")
   }
 
   func refreshPermissionSnapshot() {
@@ -363,7 +402,9 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
     refreshPermissionSnapshot()
     refreshHIDAfterPermissionChange()
     refreshAudioDevices()
-    if !state.isConnected, !hadBluetoothAccess, state.bluetoothPermissionGranted {
+    if !state.isConnected, !hadBluetoothAccess, state.bluetoothPermissionGranted,
+      !systemPairing.isActive
+    {
       reconnect()
     }
     await audioDriver.refresh()
@@ -394,6 +435,7 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
       SayAll \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development")
       macOS: \(ProcessInfo.processInfo.operatingSystemVersionString)
       Bluetooth permission: \(state.bluetoothPermissionGranted)
+      Automatic connections paused for system pairing: \(systemPairing.isActive)
       Input monitoring: \(state.inputMonitoringGranted)
       Accessibility: \(state.accessibilityGranted)
       Connection: \(state.connectionStatus.text(using: localization))
@@ -685,6 +727,7 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
   }
 
   private func startBluetoothConnections() {
+    guard started, !systemPairing.isActive else { return }
     let identifiers = Set(settings.remoteDeviceProfiles.compactMap(\.bluetoothIdentifier))
     for identifier in identifiers where bluetoothBridges[identifier] == nil {
       let bridge = XiaomiBluetoothBridge(
@@ -699,7 +742,7 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
   }
 
   private func startBluetoothDiscoveryIfNeeded() {
-    guard started, discoveryBluetoothBridge == nil else { return }
+    guard started, !systemPairing.isActive, discoveryBluetoothBridge == nil else { return }
     let bridge = XiaomiBluetoothBridge(
       settings: settings,
       delegate: self,
@@ -773,6 +816,7 @@ final class BridgeAppModel: XiaomiBluetoothBridgeDelegate {
     _ bridge: XiaomiBluetoothBridge,
     didChange bridgeState: BluetoothBridgeState
   ) {
+    guard !systemPairing.isActive else { return }
     bluetoothBridgeStates[ObjectIdentifier(bridge)] = bridgeState
     if case .failed(let message) = bridgeState {
       state.lastConnectionIssue = message

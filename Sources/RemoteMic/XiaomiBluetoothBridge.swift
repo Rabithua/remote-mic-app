@@ -439,7 +439,7 @@ final class XiaomiBluetoothBridge: NSObject {
     decoder.reset()
   }
 
-  private func scheduleReconnect(discardCachedIdentity: Bool = false) {
+  private func scheduleReconnect() {
     guard shouldRun else { return }
     reconnectWorkItem?.cancel()
     state = .reconnecting
@@ -685,7 +685,7 @@ final class XiaomiBluetoothBridge: NSObject {
       pendingSync = nil
       decoder.reset()
     }
-    scheduleReconnect(discardCachedIdentity: true)
+    scheduleReconnect()
   }
 
   private func failInitialization(_ message: LocalizedMessage) {
@@ -693,13 +693,16 @@ final class XiaomiBluetoothBridge: NSObject {
     accumulator.reset()
     pendingSync = nil
     decoder.reset()
-    scheduleReconnect(discardCachedIdentity: true)
+    scheduleReconnect()
   }
 }
 
 extension XiaomiBluetoothBridge: @preconcurrency CBCentralManagerDelegate {
   func centralManagerDidUpdateState(_ central: CBCentralManager) {
     guard self.central === central, let generation = centralGeneration else { return }
+    AppLogger.shared.write(
+      "BLE CENTRAL state=\(central.state.rawValue) authorization=\(CBManager.authorization.rawValue) generation=\(generation)"
+    )
     switch central.state {
     case .poweredOn:
       if shouldRun { discoverOrScan(using: central, generation: generation) }
@@ -727,20 +730,29 @@ extension XiaomiBluetoothBridge: @preconcurrency CBCentralManagerDelegate {
     _ central: CBCentralManager,
     didDiscover peripheral: CBPeripheral,
     advertisementData: [String: Any],
-    rssi _: NSNumber
+    rssi signalStrength: NSNumber
   ) {
     guard self.central === central else { return }
     let advertisedName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
     let serviceMatch =
       (advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID])?
       .contains(serviceUUID) == true
+    guard
+      serviceMatch || isCandidate(peripheral)
+        || XiaomiVoiceRemoteNameMatcher.matches(advertisedName)
+    else { return }
+    let services =
+      (advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID])?
+      .map(\.uuidString).joined(separator: ",") ?? "none"
+    AppLogger.shared.write(
+      "BLE FOUND name=\(advertisedName ?? peripheral.name ?? "unknown") rssi=\(signalStrength) "
+        + "connectable=\(String(describing: advertisementData[CBAdvertisementDataIsConnectable])) services=\(services)"
+    )
     guard let generation = centralGeneration,
       lifecycle == .scanning(generation),
       self.peripheral == nil,
       !excludedIdentifiers().contains(peripheral.identifier),
-      targetIdentifier == nil || peripheral.identifier == targetIdentifier,
-      serviceMatch || isCandidate(peripheral)
-        || XiaomiVoiceRemoteNameMatcher.matches(advertisedName)
+      targetIdentifier == nil || peripheral.identifier == targetIdentifier
     else { return }
     connect(peripheral, using: central, generation: generation, source: "scan")
   }
@@ -778,7 +790,7 @@ extension XiaomiBluetoothBridge: @preconcurrency CBCentralManagerDelegate {
       let generation = centralGeneration,
       lifecycle.acceptsDidFailToConnect(generation: generation)
     else { return }
-    AppLogger.shared.write("BLE CONNECT FAILED error=\(error?.localizedDescription ?? "unknown")")
+    AppLogger.shared.write("BLE CONNECT FAILED error=\(diagnosticError(error))")
     state = .failed(LocalizedMessage("device_setup.remote.connection_failed"))
     let delay = shouldRun ? (requestedReconnectDelay ?? 3) : nil
     finishAttempt(reconnectAfter: delay)
@@ -814,20 +826,17 @@ extension XiaomiBluetoothBridge: @preconcurrency CBCentralManagerDelegate {
   }
 
   private func handleDisconnect(error: Error?) {
-    let shouldDiscardCachedIdentity: Bool
-    switch lifecycle {
-    case .connecting, .discovering, .awaitingCapabilities:
-      shouldDiscardCachedIdentity = true
-    default:
-      shouldDiscardCachedIdentity = false
-    }
     AppLogger.shared.write(
-      "BLE DISCONNECTED phase=\(lifecycle) cached_identifier_cleared=\(shouldDiscardCachedIdentity) "
-        + "error=\(error?.localizedDescription ?? "none")"
+      "BLE DISCONNECTED phase=\(lifecycle) error=\(diagnosticError(error))"
     )
     let delay = shouldRun ? (requestedReconnectDelay ?? 3) : nil
     finishAttempt(reconnectAfter: delay)
     if !shouldRun { state = .stopped }
+  }
+
+  private func diagnosticError(_ error: Error?) -> String {
+    guard let error = error as NSError? else { return "none" }
+    return "\(error.domain)(\(error.code)) \(error.localizedDescription)"
   }
 }
 
@@ -843,18 +852,19 @@ extension XiaomiBluetoothBridge {
       lifecycle.acceptsInitializationCallback(generation: generation)
     else { return }
     if let error {
+      AppLogger.shared.write("BLE SERVICES failed error=\(diagnosticError(error))")
       state = .failed(
         LocalizedMessage(
           "connection.error.voice_service_discovery_failed",
           arguments: [error.localizedDescription]
         )
       )
-      scheduleReconnect(discardCachedIdentity: true)
+      scheduleReconnect()
       return
     }
     guard let service = peripheral.services?.first(where: { $0.uuid == serviceUUID }) else {
       state = .failed(LocalizedMessage("connection.error.voice_service_missing"))
-      scheduleReconnect(discardCachedIdentity: true)
+      scheduleReconnect()
       return
     }
     peripheral.discoverCharacteristics(
@@ -943,13 +953,15 @@ extension XiaomiBluetoothBridge {
       return
     }
     if let error {
+      AppLogger.shared.write(
+        "BLE CHARACTERISTICS failed service=\(service.uuid) error=\(diagnosticError(error))")
       state = .failed(
         LocalizedMessage(
           "connection.error.voice_channel_discovery_failed",
           arguments: [error.localizedDescription]
         )
       )
-      scheduleReconnect(discardCachedIdentity: true)
+      scheduleReconnect()
       return
     }
     for characteristic in service.characteristics ?? [] {
@@ -971,7 +983,7 @@ extension XiaomiBluetoothBridge {
       controlCharacteristic != nil
     else {
       state = .failed(LocalizedMessage("connection.error.voice_channel_incomplete"))
-      scheduleReconnect(discardCachedIdentity: true)
+      scheduleReconnect()
       return
     }
     requestCapabilitiesIfPossible()
@@ -1000,13 +1012,16 @@ extension XiaomiBluetoothBridge {
       return
     }
     if let error {
+      AppLogger.shared.write(
+        "BLE SUBSCRIPTION failed characteristic=\(characteristic.uuid) error=\(diagnosticError(error))"
+      )
       state = .failed(
         LocalizedMessage(
           "connection.error.voice_channel_subscription_failed",
           arguments: [error.localizedDescription]
         )
       )
-      scheduleReconnect(discardCachedIdentity: true)
+      scheduleReconnect()
       return
     }
     guard characteristic.uuid == audioUUID || characteristic.uuid == controlUUID else {

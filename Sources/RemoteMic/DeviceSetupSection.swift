@@ -31,6 +31,11 @@ struct DeviceSetupSection: View {
       SettingsRow {
         VStack(alignment: .leading, spacing: 6) {
           Text(localization.text("device_setup.remote.title"))
+          if model.systemPairing.isActive {
+            Text(localization.text("device_setup.remote.system_pairing_hint"))
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
           if !state.isConnected {
             Text(localization.text("device_setup.remote.pairing_hint"))
               .font(.caption)
@@ -51,8 +56,13 @@ struct DeviceSetupSection: View {
             )
             .buttonStyle(.bordered)
             if !state.isConnected {
-              Button(localization.text("device_setup.remote.scan"), action: model.reconnect)
-                .buttonStyle(.bordered)
+              Button(
+                localization.text(
+                  model.systemPairing.isActive
+                    ? "device_setup.remote.resume" : "device_setup.remote.scan"),
+                action: model.reconnect
+              )
+              .buttonStyle(.bordered)
             }
             Spacer(minLength: 0)
           }

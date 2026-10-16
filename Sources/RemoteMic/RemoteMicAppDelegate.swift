@@ -11,12 +11,14 @@ final class RemoteMicAppDelegate: NSObject, NSApplicationDelegate {
   private let navigation = SettingsNavigationModel()
 
   private var statusItem: NSStatusItem?
+  private var appMenuController: NativeAppMenuController?
   private var statusMenuController: NativeStatusMenuController?
   private var settingsWindow: KeyableSettingsPanel?
   private var workspaceObservers: [NSObjectProtocol] = []
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApp.setActivationPolicy(.accessory)
+    configureMainMenu()
     configureStatusItem()
     observeSystemLifecycle()
     model.startIfNeeded()
@@ -65,12 +67,29 @@ final class RemoteMicAppDelegate: NSObject, NSApplicationDelegate {
       },
       onLanguageChange: { [weak self] in
         self?.statusItem?.button?.toolTip = self?.localization.text("app.name")
+        self?.appMenuController?.rebuild()
       },
       onQuit: { NSApp.terminate(nil) }
     )
     item.menu = controller.menu
     statusMenuController = controller
     statusItem = item
+  }
+
+  private func configureMainMenu() {
+    let controller = NativeAppMenuController(
+      localization: localization,
+      onOpenSettings: { [weak self] in
+        self?.openSettings(page: .connection)
+      },
+      onCloseSettings: { [weak self] in
+        self?.settings.completeSetup()
+        self?.settingsWindow?.orderOut(nil)
+      },
+      onQuit: { NSApp.terminate(nil) }
+    )
+    appMenuController = controller
+    NSApp.mainMenu = controller.menu
   }
 
   private func openSettings(page: SettingsPage) {

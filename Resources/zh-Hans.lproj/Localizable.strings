@@ -216,6 +216,10 @@
 "device_setup.remote.title" = "连接小米遥控器";
 "device_setup.remote.pair" = "配对遥控器…";
 "device_setup.remote.scan" = "重新查找";
+"device_setup.remote.resume" = "继续连接";
+"device_setup.remote.system_pairing" = "等待系统配对完成";
+"device_setup.remote.system_pairing_hint" = "App 已暂停自动连接。请先在系统蓝牙中配对 MI RC，完成后回到这里点“继续连接”。";
+"device_setup.remote.open_settings_failed" = "未能打开系统蓝牙设置，已恢复自动连接。";
 "device_setup.remote.pairing_hint" = "在系统蓝牙中连接 MI RC 或小米遥控器。2 Pro 通常需同时长按主页键和菜单键进入配对；其他型号以说明书为准。换电脑时，先断开旧 Mac 的蓝牙连接。";
 "device_setup.remote.timeout" = "已发现遥控器，但连接超时。请确认旧 Mac 已断开，并重新进入配对模式。";
 "device_setup.remote.connection_failed" = "遥控器连接失败。请在系统蓝牙中检查配对，必要时移除旧记录后重新连接。";
@@ -278,6 +282,15 @@
 "shortcut.standalone_modifier.right_option" = "右 Option";
 "shortcut.standalone_modifier.right_shift" = "右 Shift";
 "trigger.double_click" = "双击";
+"main_menu.file" = "文件";
+"main_menu.close_window" = "关闭窗口";
+"main_menu.edit" = "编辑";
+"main_menu.undo" = "撤销";
+"main_menu.redo" = "重做";
+"main_menu.cut" = "剪切";
+"main_menu.copy" = "复制";
+"main_menu.paste" = "粘贴";
+"main_menu.select_all" = "全选";
 "trigger.long_press" = "长按";
 "trigger.single_click" = "单击";
 "voice_button.status.fn_enabled" = "遥控器语音键已硬件映射为 Fn";
